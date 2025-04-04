@@ -23,7 +23,7 @@ To use this application, you need:
 
 3. **MRI scalp surface** (.STL file): Surface mesh of the subject's scalp extracted from MRI data (typically using FreeSurfer), either from your pipeline or detaisl below on how to achieve it. 
 
-4. **OPM-MEG data** (.FIF file): The OPM-MEG recording data that requires co-registration.
+4. **OPM-MEG data** (.FIF file): The OPM-MEG recording data that requires coregistration.
 
 ## Instructions
 
@@ -192,6 +192,56 @@ This multi step approach allows for more precise control over each transformatio
   4. MRI to head registration
 - The alignment quality is mathematically verified to ensure accurate sensor localisation
 
+### Critical Helmet Coordinate System
+
+The coregistration relies on accurate specification of the known helmet points in 3D space. The default values are configured for the York OPM system, but these may need to be adjusted for different OPM-MEG setups.
+
+**Important**: You should verify that the helmet reference point coordinates match their specific system before proceeding with coregistration.
+
+The helmet reference point coordinates are defined in the following methods:
+- `confirmInsideMSR` method
+- `computeHeadToHelmetTransform` method
+- `finalizeCoregistration` method
+
+In all these methods, look for the following array definition:
+```python
+# Known positions of stickers in helmet reference frame
+sticker_pillars = np.zeros([7, 3])
+sticker_pillars[0] = [102.325, 0.221, 16.345]
+sticker_pillars[1] = [92.079, 66.226, -27.207]
+sticker_pillars[2] = [67.431, 113.778, -7.799]
+sticker_pillars[3] = [-0.117, 138.956, -5.576]
+sticker_pillars[4] = [-67.431, 113.778, -7.799]
+sticker_pillars[5] = [-92.079, 66.226, -27.207]
+sticker_pillars[6] = [-102.325, 0.221, 16.345]
+```
+
+If your helmet coordinate system differs from these values, you should update all instances of this array with your system's specific coordinates.
+
+### Known Coordinate Systems
+
+- **Helmet Coordinate System**: Defined by the 7 reference points as specified above. This is system-specific and must be calibrated for your OPM array.
+
+- **Head Coordinate System**: Follows the convention used in neuroimaging where:
+  - Origin: Midpoint between the left and right pre-auricular points
+  - X-axis: Points through the nasion
+  - Y-axis: Points through the left pre-auricular point
+  - Z-axis: Points up, perpendicular to the XY plane
+
+- **MRI Coordinate System**: Typically RAS (Right-Anterior-Superior) as used by FreeSurfer and most neuroimaging software.
+
+Ensuring consistency between these coordinate systems is essential for accurate co-registration.
+
+### Modifying the Code for Different Systems
+
+If you need to adapt the software for a different OPM-MEG system:
+
+1. Update the `known_sensor_positions` variable in the `__init__` method
+2. Update all instances of `sticker_pillars` in the methods mentioned above
+3. Verify that your fiducial definition matches the expected order (RPA, LPA, NAS)
+4. Consider adjusting the error thresholds in the `finalizeCoregistration` method if your system has different precision requirements
+5. Please do not edit the main, and either download a copy or create a branch for your use.
+   
 ## References
 
 - Zetter et al. (2019). Optical Co-registration of MRI and On-scalp MEG. Scientific Reports, 9(1), 5490.
