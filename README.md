@@ -82,6 +82,7 @@ To use this application, you need:
      - Helmet points (ideally <3mm)
      - Fiducial points (ideally <3mm)(Not fully achived in this version, currently at <6mm)
    - A visualisation of the alignment will be shown
+   - It is likely that this step will take up to 1 minute to complete. Do not kill your terminal or force otehr buttons as this will interrupt the process and the transformation will not be completed. 
 
 5. **Save Results (Step 4)**
    - Once registration is complete, click "Save Results"
@@ -90,11 +91,88 @@ To use this application, you need:
      - Updated MEG data with device-to-head transformation
      - MRI-to-head transformation file
      - Text files with reference point coordinates
+   - BIDS implementation will be added soon.
 
 ## Expected Accuracy
 
 - **Helmet Points**: Mean error should be <2mm, with maximum error <3mm. Currently the mean erros  is 1.61.
 - **Fiducial Points**: Ideally <3mm, though helmet point accuracy is more critical for OPM-MEG source localisation. Still working on this but currently at <6mm.
+
+## System Requirements and Technical Details
+
+### Software Requirements
+
+- **Python Version**: Python 3.8 or above (please note python 12.0 and above might not have ML support and therefore might not work correctly).
+- **Required Packages**:
+  - `numpy`: For numerical computations and matrix transformations
+  - `mne`: For MEG data handling and transformation file I/O
+  - `PyQt5`: For the graphical user interface
+  - `vtk`: For 3D visualization of point clouds and meshes
+  - `open3d`: For point cloud processing and registration algorithms
+  - `copy`: For deep copying of data structures
+  - `os`, `sys`: For file operations and system functions (only for MacOS)
+
+These dependencies can be installed via pip:
+```bash
+pip install numpy mne PyQt5 vtk open3d
+```
+
+Alternatively, using conda:
+```bash
+conda install -c conda-forge numpy mne pyqt vtk open3d
+```
+
+### Hardware Requirements
+
+- A computer with at least 8GB RAM
+- Graphics card supporting OpenGL 3.3 or higher (for 3D visualization)
+- At least 1GB of free disk space
+
+### Mathematical Background
+
+The coregistration process relies on several mathematical transformations:
+
+1. **Kabsch Algorithm**: This algorithm calculates the optimal rigid transformation (rotation and translation) to align two sets of corresponding points. Given two point sets P and Q, it:
+   
+   - Centers both point sets by subtracting their respective centroids
+   - Computes the cross-covariance matrix H = P'Q (where P' and Q are the centered point sets)
+   - Performs singular value decomposition (SVD) on H = USV^T
+   - Computes the rotation matrix R = VU^T
+   - Ensures a proper rotation by checking det(R) > 0
+   - Computes the translation t = centroid_Q - R·centroid_P
+   - The final transformation matrix combines R and t
+
+   This algorithm minimises the root mean square deviation (RMSD) between the corresponding points.
+
+2. **Iterative Closest Point (ICP)**: Used for refining the alignment between point clouds when there are not enough fiducial points or when additional precision is needed.
+
+3. **Spatial Interpolation**: Used in the refined alignment to distribute corrections smoothly across space, preserving local geometry while improving global alignment.
+
+### Output Files
+
+The coregistration process generates several important output files:
+
+1. **Transformed MEG Data File** (*.fif): Contains the original MEG data with the added device to head transformation matrix. This file can be directly used in source estimation tools like MNE-Python.
+
+3. **Trans File** (*_trans.fif): Contains the MRI-to-head transformation matrix, which is needed for source localisation with MRI data.
+
+4. **Inside MSR Points** (inside_msr_points.txt): Text file containing the coordinates of the selected helmet points.
+
+5. **Fiducial Points** (fiducial_points.txt): Text file with coordinates of the fiducial points selected on the outside MSR scan.
+
+### Implementation Notes
+
+The transformation pipeline is structured to maximize accuracy while being robust to scanning variations:
+
+1. The helmet point registration (X1 transform) aligns the inside MSR scan with a known helmet reference frame.
+
+2. The fiducial point registration (X2 transform) establishes a standard head coordinate system.
+
+3. The combined transformation (X21 = X2 * X1) maps from the MEG device space to the standardised head space.
+
+4. The MRI registration (X3 transform) maps from the MRI reference frame to the standardised head coordinates.
+
+This multi step approach allows for more precise control over each transformation component and enables detailed error metrics at each stage. The software prioritizes helmet point accuracy over fiducial accuracy, as sensor positions relative to brain anatomy are the most critical factor in OPM-MEG source localization.
 
 ## Troubleshooting
 
