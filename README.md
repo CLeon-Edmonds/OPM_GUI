@@ -113,7 +113,13 @@ Before using this software, you must process the MRI data using FreeSurfer. Foll
 The software implements a step by step co-registration process:
 
 ### 1. Load Data Files
-Select all required files using the buttons on the left panel.
+
+- Option 1: Manually select all required files using the buttons on the left panel.
+- Option 2: Click on "Use BIDS" button if preferred. You will have to provide:
+     - BIDS Root Directory
+     - Derivative Directory
+     - BIDS Entities: subject, session, task, run, suffix.
+     - Path to MRI (if left vlank it will use same path as above)
 
 ### 2. Inside MSR Registration
 - The Inside MSR scan will be displayed.
@@ -302,6 +308,6 @@ This software was developed with inspiration and methods derived from:
 
 For support or queries, please contact:
 
-Christopher Leon Edmonds-Hunt: cle464@student.bham.ac.uk, christopherleonhunt@gmail.com
-Milan Nedoma: {ask for Milans email}
-Anna Kowalczyk (Supervisor): a.kowalczyk@bham.ac.uk
+- Christopher Leon Edmonds-Hunt: cle464@student.bham.ac.uk, christopherleonhunt@gmail.com
+- Milan Nedoma: {ask for Milans email}
+- Anna Kowalczyk (Supervisor): a.kowalczyk@bham.ac.uk
