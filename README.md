@@ -289,9 +289,13 @@ These files can be used directly with MNE-Python and other MEG analysis tools.
 
 ## Acknowledgements
 
-This software was developed with inspiration and methods derived from the OPM research programme at York Neuroimaging Centre, University of York, in particualr: Richard Aveyard, Alex Wade and Joe Lyons.
+This software was developed with inspiration and methods derived from:
 
-The co-registration algorithms incorporate techniques developed through collaborative efforts in the MEG community, with particular thanks to the MNE-Python team for their excellent software ecosystem that this tool builds upon.
+- The OPM research programme at York Neuroimaging Centre, University of York, in particular: Richard Aveyard, Alex Wade and Joe Lyons. You may find their original code here: https://vcs.ynic.york.ac.uk/ynic-public/yorc
+
+- Zetter et al. (2019) co-registration method: https://www.nature.com/articles/s41598-019-41763-4
+
+- The co-registration algorithms incorporate techniques developed through collaborative efforts in the MEG community, with particular thanks to the MNE-Python team for their excellent software ecosystem that this tool builds upon. In particular, Seymour et al. (2022): https://mne.tools/stable/auto_tutorials/preprocessing/80_opm_processing.html, https://www.sciencedirect.com/science/article/pii/S1053811921011058?via%3Dihub
 
 
 ## Contact
