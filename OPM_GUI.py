@@ -1375,12 +1375,8 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
         return T
      
     def computeHeadToHelmetTransform(self, selected_points):
-        """
-        Calculate transformation from inside MSR to helmet coordinate system.
-        Based directly on York's head_to_helmet function.
-        """
         try:
-            # Known positions of stickers in helmet reference frame from York code
+            #Known positions of stickers in helmet reference frame from York code
             sticker_pillars = np.zeros([7, 3])
             sticker_pillars[0] = [102.325, 0.221, 16.345]
             sticker_pillars[1] = [92.079, 66.226, -27.207]
@@ -1389,32 +1385,29 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             sticker_pillars[4] = [-67.431, 113.778, -7.799]
             sticker_pillars[5] = [-92.079, 66.226, -27.207]
             sticker_pillars[6] = [-102.325, 0.221, 16.345]
-            
-            # Create point clouds for transformation
-            import open3d as o3d
-            
-            # Make helmet reference point cloud
+        
+            #Make helmet reference point cloud
             helmet_cloud = o3d.geometry.PointCloud()
             helmet_cloud.points = o3d.utility.Vector3dVector(sticker_pillars)
             
-            # Make selected points cloud
+            #Make selected points cloud
             selected_cloud = o3d.geometry.PointCloud()
             selected_cloud.points = o3d.utility.Vector3dVector(selected_points)
             
-            # Define correspondence
+            #Define correspondence
             corr = np.zeros((len(selected_points), 2))
             for i in range(len(selected_points)):
-                corr[i, 0] = i  # Index in helmet cloud
+                corr[i, 0] = i  #Index in helmet cloud
                 corr[i, 1] = i  # Index in selected cloud
             
-            # Calculate transform based on anchor points alone
+            #Calculate transform based on anchor points alone
             p2p = o3d.pipelines.registration.TransformationEstimationPointToPoint()
             trans_init = p2p.compute_transformation(
                 helmet_cloud, selected_cloud,
                 o3d.utility.Vector2iVector(corr.astype(np.int32))
             )
             
-            # Print errors to verify quality
+            #Print errors to verify quality
             test = copy.deepcopy(helmet_cloud)
             test.transform(trans_init)
             
@@ -1432,14 +1425,13 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             return np.eye(4)
         
     def fitPoints(self):
-        """Adjust selected points to better match the helmet positions"""
         if self.current_stage == "inside_msr" and len(self.selected_points) == 7:
             try:
-                # Store the original selected points for reference
+                #Store the original selected points for reference
                 original_points = np.array(self.selected_points.copy())
                 
-                # Define the known positions of stickers in the helmet reference frame
-                # These values are taken from the head_to_helmet function in the York code
+                #Define the known positions of stickers in the helmet reference frame
+                #These values are taken from the head_to_helmet function, change as necessary with new known points.
                 known_sticker_positions = np.zeros([7, 3])
                 known_sticker_positions[0] = [102.325, 0.221, 16.345]
                 known_sticker_positions[1] = [92.079, 66.226, -27.207]
@@ -1449,10 +1441,10 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                 known_sticker_positions[5] = [-92.079, 66.226, -27.207]
                 known_sticker_positions[6] = [-102.325, 0.221, 16.345]
                 
-                # Update our known sensor positions with these values to match the reference code
+                #Update our known sensor positions with these values to match the reference code
                 self.known_sensor_positions = known_sticker_positions
                 
-                # Remove old point actors
+                #Remove old point actors
                 for actor in self.point_actors:
                     self.ren.RemoveActor(actor)
                     if actor in self.actors:
@@ -1460,33 +1452,33 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                 
                 self.point_actors.clear()
                 
-                # Use our existing computeTransformation function to find the transformation
+                #Use our existing computeTransformation function to find the transformation
                 transform = self.computeTransformation(original_points, known_sticker_positions)
                 
-                # Compute optimized positions by applying small adjustments to the original points
+                #Compute optimized positions by applying small adjustments to the original points
                 adjusted_points = []
                 
                 for i, orig_pt in enumerate(original_points):
-                    # Generate a point that will be within 3mm of the known position
-                    # Start with the original point the user selected
+                    #Generate a point that will be within 3mm of the known position
+                    #Start with the original point the user selected
                     adjusted_point = np.array(orig_pt)
                     
-                    # Create homogeneous coordinates
+                    #Create homogeneous coordinates
                     homogeneous_point = np.append(adjusted_point, 1.0)
                     
-                    # Apply transformation
+                    #Apply transformation
                     transformed_homogeneous = np.dot(transform, homogeneous_point)
                     
-                    # Get the 3D point back
+                    #Get the 3D point back
                     transformed_point = transformed_homogeneous[:3]
                     
-                    # Check distance from target sticker position
+                    #Check distance from target sticker position
                     target = known_sticker_positions[i]
                     distance = np.linalg.norm(transformed_point - target)
                     
-                    # If distance is too large, adjust the point
-                    if distance > 2.8:  # Buffer to stay under 3mm
-                        # Move transformed point closer to target
+                    #If distance is too large, adjust the point
+                    if distance > 2.8:  #Buffer to stay under 3mm
+                        #Move transformed point closer to target
                         direction = target - transformed_point
                         if np.linalg.norm(direction) > 0:
                             direction = direction / np.linalg.norm(direction)
@@ -1494,26 +1486,26 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                             direction = np.random.randn(3)
                             direction = direction / np.linalg.norm(direction)
                             
-                        # Calculate how much to move
-                        move_distance = distance - 2.5  # Move to get under 3mm
+                        #Calculate how much to move
+                        move_distance = distance - 2.5  #Move to get under 3mm
                         
-                        # Adjust the transformed point
+                        #Adjust the transformed point
                         new_transformed = transformed_point + direction * move_distance
                         
-                        # Now we need to back-calculate what original point would give us this transformed point
-                        # We need to invert the transformation
+                        #Now we need to backcalculate what original point would give us this transformed point
+                        #We need to invert the transformation
                         inv_transform = np.linalg.inv(transform)
                         
-                        # Apply inverse transform
+                        #Apply inverse transform
                         new_homogeneous = np.append(new_transformed, 1.0)
                         orig_homogeneous = np.dot(inv_transform, new_homogeneous)
                         
-                        # Get the adjusted original point
+                        #Get the adjusted original point
                         adjusted_point = orig_homogeneous[:3]
                     
                     adjusted_points.append(adjusted_point)
                     
-                    # Create a sphere for visualization
+                    #Create a sphere for visualisation
                     point_source = vtk.vtkSphereSource()
                     point_source.SetCenter(adjusted_point)
                     point_source.SetRadius(3.0)
@@ -1533,41 +1525,41 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                 
                 self.selected_points = adjusted_points
                 
-                # Calculate the transformation matrix
+                #Calculate the transformation matrix
                 self.X1 = self.computeTransformation(np.array(adjusted_points), self.known_sensor_positions)
                 
-                # Update distances in the UI
+                #Update distances in the UI
                 for i, point in enumerate(self.selected_points):
                     if i < len(self.known_sensor_positions):
-                        # Create homogeneous coordinates for transformation
+                        #Create homogeneous coordinates for transformation
                         homogeneous_point = np.append(point, 1.0)
                         
-                        # Apply the transformation
+                        #Apply the transformation
                         transformed_homogeneous = np.dot(self.X1, homogeneous_point)
                         
-                        # Get the 3D point back
+                        #Get the 3D point back
                         transformed_point = transformed_homogeneous[:3]
                         
-                        # Calculate distance from transformed point to known position
+                        #Calculate distance from transformed point to known position
                         target = self.known_sensor_positions[i]
                         distance = np.linalg.norm(transformed_point - target)
                         
                         self.distance_labels[i].setText(f"Point {i+1}: {distance:.2f} mm")
                         self.distance_boxes[i].setText(f"{distance:.2f} mm")
                         
-                        # Color based on distance
+                        #Color based on distance
                         if distance > 3:
                             self.distance_boxes[i].setStyleSheet("background-color: #FF5733; color: white;")
                         else:
                             self.distance_boxes[i].setStyleSheet("background-color: #4CAF50; color: white;")
                 
-                # Enable continue button
+                #Enable continue button
                 self.continue_button.setEnabled(True)
                 
-                # Render the scene
+                #Render the scene
                 self.vtk_widget.GetRenderWindow().Render()
                 
-                # Inform the user
+                #Inform the user
                 QMessageBox.information(self, "Points Fitted", 
                                       "Points have been adjusted to match helmet positions.")
             except Exception as e:
@@ -1577,26 +1569,25 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                 QMessageBox.critical(self, "Error", f"Error fitting points: {str(e)}")
                                   
     def confirmOutsideMSR(self):
-        """Confirm the selection of fiducial points in outside MSR scan"""
         try:
-            # Store the fiducial points for later use
+            #Store the fiducial points for later use
             self.fiducial_points = np.array(self.selected_points)
             
-            # Create a dictionary to store the fiducial labels with their corresponding points
+            #Create a dictionary to store the fiducial labels with their corresponding points
             self.fiducials_dict = {
                 self.fiducial_labels[i]: self.fiducial_points[i] 
                 for i in range(min(len(self.fiducial_labels), len(self.fiducial_points)))
             }
             
-            # Print fiducial points for debugging
+            #Print fiducial points for debugging
             print("Fiducial points selected:")
             for label, point in self.fiducials_dict.items():
                 print(f"{label}: {point}")
             
-            # Enable the continue button
+            #Enable the continue button
             self.continue_button.setEnabled(True)
             
-            # Inform the user
+            #Inform the user
             QMessageBox.information(self, "Fiducials Confirmed", 
                                    "Fiducial points have been saved. Click Continue to proceed to the next step.")
         except Exception as e:
@@ -1606,19 +1597,17 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             QMessageBox.critical(self, "Error", f"Error confirming outside MSR points: {str(e)}")
                                
     def continueWorkflow(self):
-        """Move to the next stage in the co-registration workflow"""
         if self.current_stage == "inside_msr":
             self.moveToOutsideMSR()
         elif self.current_stage == "outside_msr":
             self.moveToMRIScalp()
 
     def moveToOutsideMSR(self):
-        """Transition to Outside MSR stage"""
         try:
-            # Save the selected points from inside MSR before clearing
+            #Save the selected points from inside MSR before clearing
             self.inside_msr_points = self.selected_points.copy()
             
-            # Prepare GUI for Outside MSR stage
+            #Prepare GUI for Outside MSR stage
             self.current_stage = "outside_msr"
             self.updateInstructions()
 
@@ -1633,33 +1622,28 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             QMessageBox.critical(self, "Error", f"Error transitioning to outside MSR stage: {str(e)}")
             
     def computeHeadToStandardTransform(self, fiducial_points):
-        """
-        Compute transformation from outside MSR to standard coordinate system.
-        Based directly on York's head_to_standard function.
-        """
         try:
-            # Extract fiducial points
-            R_aur = fiducial_points[0]  # Right pre-auricular
-            L_aur = fiducial_points[1]  # Left pre-auricular
-            nas = fiducial_points[2]    # Nasion
+            #Extract fiducial points
+            R_aur = fiducial_points[0]  #RPA
+            L_aur = fiducial_points[1]  #LPA
+            nas = fiducial_points[2]    #Nasion
             
-            # Get position of CTF-style origin in original LIDAR data
+            #Get position of CTF style origin in original LIDAR data
             origin = (R_aur + L_aur) / 2.0
             
-            # Define anatomical points in 'standard' space to align with
+            #Define anatomical points in standard space to align with
             standard = np.zeros([3, 3])
             
-            # right pre-auricular on -ve y-axis
+            #RPA on -ve y axis
             standard[0] = [0, -np.linalg.norm(R_aur - L_aur)/2.0, 0]
             
-            # left pre-auricular on +ve y-axis
+            #LPA on +ve y axis
             standard[1] = [0, np.linalg.norm(R_aur - L_aur)/2.0, 0]
             
-            # Nasion on x-axis
+            #Nasion on x axis
             standard[2] = [np.linalg.norm(origin-nas), 0, 0]
             
-            # Make into clouds
-            import open3d as o3d
+            #Make into clouds
             
             fiducial_cloud = o3d.geometry.PointCloud()
             fiducial_cloud.points = o3d.utility.Vector3dVector(fiducial_points)
@@ -1667,12 +1651,12 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             standard_cloud = o3d.geometry.PointCloud()
             standard_cloud.points = o3d.utility.Vector3dVector(standard)
             
-            # Define correspondence
+            #Define correspondence
             corr = np.zeros((3, 2))
-            corr[:, 0] = np.array([0, 1, 2])  # Indices in fiducial cloud
-            corr[:, 1] = np.array([0, 1, 2])  # Indices in standard cloud
+            corr[:, 0] = np.array([0, 1, 2])  #Indices in fiducial cloud
+            corr[:, 1] = np.array([0, 1, 2])  #Indices in standard cloud
             
-            # Calculate transform
+            #Calculate transform
             p2p = o3d.pipelines.registration.TransformationEstimationPointToPoint()
             trans_init = p2p.compute_transformation(
                 fiducial_cloud, standard_cloud,
@@ -1688,29 +1672,28 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             return np.eye(4)
 
     def moveToMRIScalp(self):
-        """Transition to MRI-scalp registration stage."""
         try:
-            # Save the fiducial points before proceeding
+            #Save the fiducial points before proceeding
             if not hasattr(self, 'fiducial_points') or self.fiducial_points is None:
                 self.fiducial_points = self.selected_points.copy()
                 
-                # Create a dictionary to store the fiducial labels with their corresponding points if not done already
+                #Create a dictionary to store the fiducial labels with their corresponding points if not done already
                 if not self.fiducials_dict:
                     self.fiducials_dict = {
                         self.fiducial_labels[i]: self.fiducial_points[i] 
                         for i in range(min(len(self.fiducial_labels), len(self.fiducial_points)))
                     }
             
-            # Update UI for MRI registration stage
+            #Update UI for MRI registration stage
             self.current_stage = "mri_scalp"
             self.updateInstructions()
             
-            # Verify we have the required fiducial points
+            #Verify we have the required fiducial points
             if not hasattr(self, 'fiducial_points') or len(self.fiducial_points) < 3:
                 QMessageBox.critical(self, "Error", "Fiducial points not properly saved. Please repeat the outside MSR stage.")
                 return
                 
-            # Try to compute the transformation directly
+            #Try to compute the transformation directly
             print("Computing head to standard transform...")
             self.X2 = self.computeHeadToStandardTransform(self.fiducial_points)
             
@@ -1730,17 +1713,14 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             QMessageBox.critical(self, "Error", f"Error in moveToMRIScalp: {str(e)}")
             
     def askForScalpFiducials(self):
-        """
-        Ask the user to select LPA and RPA fiducials on the scalp model.
-        """
         try:
-            # Load scalp model
+            #Load scalp model
             scalp_model = self.loadPointCloudOpen3D(self.file_paths["Scalp File"], 50000)
             
-            # Clear existing points
+            #Clear existing points
             self.clearPoints()
             
-            # Update instructions
+            #Update instructions
             self.instructions_label.setText(
                 "Please select fiducials on the MRI scalp:\n"
                 "1. Right Pre-auricular\n"
@@ -1748,15 +1728,9 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                 "Use Shift+Left Click to select points"
             )
             
-            # Load scalp model in VTK for selection
+            #Load scalp model in VTK for selection
             self.loadPointCloud("Scalp File")
-            
-            # We'll capture the selection in onShiftLeftClick and confirmPoints
-            # Store them in self.scalp_fiducials when done
             self.current_stage = "scalp_fiducials"
-            
-            # This waits for the user to select and confirm the points
-            # Once done, confirmPoints will call the appropriate next step
             
         except Exception as e:
             print(f"Error in askForScalpFiducials: {e}")
@@ -1765,29 +1739,23 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             QMessageBox.critical(self, "Error", f"Error selecting scalp fiducials: {str(e)}")
                     
     def computeHeadToMRITransform(self, outside_msr=None):
-        """
-        Perform MRI to head registration with insights from recent OPM co-registration literature.
-        Based on techniques from frontiers.org and mne.tools papers on OPM registration.
-        """
         try:
             self.progress_bar.setValue(10)
             QApplication.processEvents()
             
-            # Load scalp model
+            #Load scalp model
             scalp_model = self.loadPointCloudOpen3D(self.file_paths["Scalp File"], 50000)
             
-            # Known MRI fiducial points in mm
-            mri_lpa = np.array([-79.77, 6.84, -18.24])  # Left PA
-            mri_nas = np.array([7.45, 84.78, 32.48])    # Nasion
-            mri_rpa = np.array([76.52, -7.49, -32.59])  # Right PA
+            #Known MRI fiducial points in mm
+            mri_lpa = np.array([-79.77, 6.84, -18.24])  #LPA
+            mri_nas = np.array([7.45, 84.78, 32.48])    #Nasion
+            mri_rpa = np.array([76.52, -7.49, -32.59])  #RPA
             
-            # Check if we have proper outside MSR fiducials
+            #Check if we have proper outside MSR fiducials
             if not hasattr(self, 'fiducial_points') or len(self.fiducial_points) < 3:
                 self.instructions_label.setText("Error: Fiducial points not defined")
                 return np.eye(4)
                 
-            # From frontiers.org paper: Using weighted fiducial registration
-            # Giving more weight to fiducials improves co-registration accuracy for OPM
             outside_rpa = self.fiducial_points[0]
             outside_lpa = self.fiducial_points[1]
             outside_nas = self.fiducial_points[2]
@@ -1800,25 +1768,19 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             print(f"MRI LPA: {mri_lpa}")
             print(f"MRI NAS: {mri_nas}")
             
-            # From Sciencedirect paper: Create head coordinate system 
-            # based on fiducials before registration
             mri_fiducials = np.array([mri_rpa, mri_lpa, mri_nas])
             outside_fiducials = np.array([outside_rpa, outside_lpa, outside_nas])
             
-            # MNE-style coordinate system based on fiducials
-            # Origin at midpoint between LPA and RPA
             origin_outside = (outside_rpa + outside_lpa) / 2.0
             origin_mri = (mri_rpa + mri_lpa) / 2.0
-            
-            # X-axis through nasion, Y-axis through left pre-auricular
-            # See MNE documentation for details on this approach
+
             x_outside = outside_nas - origin_outside
             x_outside = x_outside / np.linalg.norm(x_outside)
             
             x_mri = mri_nas - origin_mri
             x_mri = x_mri / np.linalg.norm(x_mri)
             
-            # Y-axis orthogonal to X-axis in the fiducial plane
+            #Y axis orthogonal to X axis in the fiducial plane
             y_outside_tmp = outside_lpa - origin_outside
             z_outside = np.cross(x_outside, y_outside_tmp)
             z_outside = z_outside / np.linalg.norm(z_outside)
@@ -1827,24 +1789,24 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             z_mri = np.cross(x_mri, y_mri_tmp)
             z_mri = z_mri / np.linalg.norm(z_mri)
             
-            # Compute y to ensure orthogonality
+            #Compute y to ensure orthogonality
             y_outside = np.cross(z_outside, x_outside)
             y_outside = y_outside / np.linalg.norm(y_outside)
             
             y_mri = np.cross(z_mri, x_mri)
             y_mri = y_mri / np.linalg.norm(y_mri)
             
-            # Build rotation matrices
+            #Build rotation matrices
             rot_outside = np.vstack((x_outside, y_outside, z_outside)).T
             rot_mri = np.vstack((x_mri, y_mri, z_mri)).T
             
-            # Combined rotation from MRI to outside
+            #Combined rotation from MRI to outside
             rotation = np.dot(rot_outside, rot_mri.T)
             
-            # Translation from MRI to outside
+            #Translation from MRI to outside
             translation = origin_outside - np.dot(rotation, origin_mri)
             
-            # Create full transformation matrix
+            #Create full transformation matrix
             mri_to_head = np.eye(4)
             mri_to_head[:3, :3] = rotation
             mri_to_head[:3, 3] = translation
@@ -1852,18 +1814,15 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             self.progress_bar.setValue(100)
             QApplication.processEvents()
             
-            # From Optica paper: Incorporate anisotropic scaling to account for 
-            # potential differences in calibration
-            # We'll implement this as a tunable parameter
-            scale_factor = 1.0  # Initial scaling factor
+            scale_factor = 1.0  #Initial scaling factor
             
-            # Create a scaling component
+            #Create a scaling component
             scaling_matrix = np.eye(4)
             scaling_matrix[0, 0] = scale_factor
             scaling_matrix[1, 1] = scale_factor
             scaling_matrix[2, 2] = scale_factor
             
-            # Apply scaling to the transformation
+            #Apply scaling to the transformation
             mri_to_head_scaled = np.dot(mri_to_head, scaling_matrix)
             
             return mri_to_head_scaled
@@ -1877,13 +1836,12 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             return np.eye(4)
     
     def visualizeSimpleRegistration(self, source_cloud, target_cloud):
-        """Simplified visualization with better memory management."""
         try:
-            # Get points from clouds
+            #Get points from clouds
             source_points = np.asarray(source_cloud.points)
             target_points = np.asarray(target_cloud.points)
             
-            # Randomly sample points for visualization to limit memory usage
+            #Randomly sample points for visualization to limit memory usage
             max_points = 10000
             
             if len(source_points) > max_points:
@@ -1894,12 +1852,12 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                 target_idx = np.random.choice(len(target_points), max_points, replace=False)
                 target_points = target_points[target_idx]
             
-            # Clear previous actors except point actors
+            #Clear previous actors except point actors
             for actor in self.actors:
                 if actor not in self.point_actors:
                     self.ren.RemoveActor(actor)
             
-            # Create VTK representations
+            #Create VTK representations
             source_polydata = vtk.vtkPolyData()
             source_vtk_points = vtk.vtkPoints()
             for point in source_points:
@@ -1912,7 +1870,7 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                 target_vtk_points.InsertNextPoint(point[0], point[1], point[2])
             target_polydata.SetPoints(target_vtk_points)
             
-            # Create vertices
+            #Create vertices
             source_vertices = vtk.vtkCellArray()
             for i in range(source_vtk_points.GetNumberOfPoints()):
                 vertex = vtk.vtkVertex()
@@ -1927,7 +1885,7 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                 target_vertices.InsertNextCell(vertex)
             target_polydata.SetVerts(target_vertices)
             
-            # Create mappers and actors
+            #Create mappers and actors
             source_mapper = vtk.vtkPolyDataMapper()
             source_mapper.SetInputData(source_polydata)
             
@@ -1944,13 +1902,13 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             target_actor.GetProperty().SetColor(0, 1, 0)  # Green for head scan
             target_actor.GetProperty().SetPointSize(2)
             
-            # Add actors to renderer
+            #Add actors to renderer
             self.ren.AddActor(source_actor)
             self.ren.AddActor(target_actor)
             self.actors.append(source_actor)
             self.actors.append(target_actor)
             
-            # Reset camera and render - on the main thread
+            #Reset camera and render - on the main thread
             QTimer.singleShot(0, lambda: self.ren.ResetCamera())
             QTimer.singleShot(0, lambda: self.vtk_widget.GetRenderWindow().Render())
         except Exception as e:
@@ -1959,31 +1917,28 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             traceback.print_exc()
 
     def visualize_in_main_window(self, source_pcd, target_pcd, transformation=None, clear_previous=True):
-        """
-        Improved visualization showing full point clouds with better detail.
-        """
         if clear_previous:
-            # Clear previous actors except point actors
+            #Clear previous actors except point actors
             for actor in self.actors:
                 if actor not in self.point_actors:
                     self.ren.RemoveActor(actor)
             self.actors = [actor for actor in self.actors if actor in self.point_actors]
         
-        # Create downsampled versions for visualization (for performance)
-        max_points = 50000  # Increased for better detail
+        #Create downsampled versions for visualisation (for performance)
+        max_points = 50000  #Increased for better detail
         
         source_points = np.asarray(source_pcd.points)
         if len(source_points) > max_points:
             indices = np.random.choice(len(source_points), max_points, replace=False)
             source_points = source_points[indices]
         
-        # Apply transformation if provided
+        #Apply transformation if provided
         if transformation is not None:
-            # Create homogeneous coordinates
+            #Create homogeneous coordinates
             ones = np.ones((source_points.shape[0], 1))
             homogeneous_points = np.hstack((source_points, ones))
             
-            # Apply transformation
+            #Apply transformation
             transformed_points = np.dot(homogeneous_points, transformation.T)
             source_points = transformed_points[:, :3]
         
@@ -1992,14 +1947,14 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             indices = np.random.choice(len(target_points), max_points, replace=False)
             target_points = target_points[indices]
         
-        # Create polydata for source and target
+        #Create polydata for source and target
         source_polydata = vtk.vtkPolyData()
         source_vtk_points = vtk.vtkPoints()
         for point in source_points:
             source_vtk_points.InsertNextPoint(point)
         source_polydata.SetPoints(source_vtk_points)
         
-        # Create vertices for source
+        #Create vertices for source
         source_vertices = vtk.vtkCellArray()
         for i in range(source_vtk_points.GetNumberOfPoints()):
             vertex = vtk.vtkVertex()
@@ -2007,22 +1962,22 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             source_vertices.InsertNextCell(vertex)
         source_polydata.SetVerts(source_vertices)
         
-        # Create mapper and actor for source
+        #Create mapper and actor for source
         source_mapper = vtk.vtkPolyDataMapper()
         source_mapper.SetInputData(source_polydata)
         source_actor = vtk.vtkActor()
         source_actor.SetMapper(source_mapper)
-        source_actor.GetProperty().SetColor(0, 1, 0)  # Green
+        source_actor.GetProperty().SetColor(0, 1, 0)  #Green
         source_actor.GetProperty().SetPointSize(3)
         
-        # Create polydata for target
+        #Create polydata for target
         target_polydata = vtk.vtkPolyData()
         target_vtk_points = vtk.vtkPoints()
         for point in target_points:
             target_vtk_points.InsertNextPoint(point)
         target_polydata.SetPoints(target_vtk_points)
         
-        # Create vertices for target
+        #Create vertices for target
         target_vertices = vtk.vtkCellArray()
         for i in range(target_vtk_points.GetNumberOfPoints()):
             vertex = vtk.vtkVertex()
@@ -2030,7 +1985,7 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             target_vertices.InsertNextCell(vertex)
         target_polydata.SetVerts(target_vertices)
         
-        # Create mapper and actor for target
+        #Create mapper and actor for target
         target_mapper = vtk.vtkPolyDataMapper()
         target_mapper.SetInputData(target_polydata)
         target_actor = vtk.vtkActor()
@@ -2038,21 +1993,20 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
         target_actor.GetProperty().SetColor(1, 0, 0)  # Red
         target_actor.GetProperty().SetPointSize(3)
         
-        # Add actors to renderer
+        #Add actors to renderer
         self.ren.AddActor(source_actor)
         self.ren.AddActor(target_actor)
         self.actors.append(source_actor)
         self.actors.append(target_actor)
         
-        # Reset camera and render
+        #Reset camera and render
         self.ren.ResetCamera()
         self.vtk_widget.GetRenderWindow().Render()
 
     def visualizeRegistrationResult(self, mri_cloud, standard_head):
-        """Visualize registration results separately from computation."""
         try:
-            # This is a placeholder - registration visualization is now handled directly
-            # in computeHeadToMRITransform to avoid threading issues
+            #This is a placeholder - registration visualisation is now handled directly
+            #in computeHeadToMRITransform to avoid threading issues but kept just in case.
             pass
         except Exception as e:
             QMessageBox.critical(self, "Visualization Error", f"Error visualizing results: {str(e)}")
@@ -2060,18 +2014,14 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             traceback.print_exc()
 
     def visualize_static_alignment(self, source_pcd, target_pcd):
-        """
-        Create a simplified, static visualization of alignment that's efficient.
-        Uses downsampled point clouds and optimized rendering.
-        """
         try:
-            # Clear previous actors except point actors
+            #Clear previous actors except point actors
             for actor in self.actors:
                 if actor not in self.point_actors:
                     self.ren.RemoveActor(actor)
             self.actors = [actor for actor in self.actors if actor in self.point_actors]
             
-            # Downsample further if needed to keep visualization fast
+            #Downsample further if needed to keep visualisation fast
             max_points = 5000
             
             source_points = np.asarray(source_pcd.points)
@@ -2084,7 +2034,7 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                 indices = np.random.choice(len(target_points), max_points, replace=False)
                 target_points = target_points[indices]
                 
-            # Create VTK point clouds for visualization
+            #Create VTK point clouds for visualisation
             source_vtk_points = vtk.vtkPoints()
             for point in source_points:
                 source_vtk_points.InsertNextPoint(point)
@@ -2093,7 +2043,7 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             for point in target_points:
                 target_vtk_points.InsertNextPoint(point)
                 
-            # Create polydata
+            #Create polydata
             source_polydata = vtk.vtkPolyData()
             source_polydata.SetPoints(source_vtk_points)
             source_vertices = vtk.vtkCellArray()
@@ -2112,36 +2062,36 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                 target_vertices.InsertNextCell(vertex)
             target_polydata.SetVerts(target_vertices)
             
-            # Create mappers
+            #Create mappers
             source_mapper = vtk.vtkPolyDataMapper()
             source_mapper.SetInputData(source_polydata)
             target_mapper = vtk.vtkPolyDataMapper()
             target_mapper.SetInputData(target_polydata)
             
-            # Create actors with optimized settings
+            #Create actors with optimised settings
             source_actor = vtk.vtkActor()
             source_actor.SetMapper(source_mapper)
-            source_actor.GetProperty().SetColor(0, 1, 0)  # Green for scalp model
+            source_actor.GetProperty().SetColor(0, 1, 0)  #Green for scalp model
             source_actor.GetProperty().SetPointSize(3)
             
             target_actor = vtk.vtkActor()
             target_actor.SetMapper(target_mapper)
-            target_actor.GetProperty().SetColor(1, 0, 0)  # Red for outside MSR
+            target_actor.GetProperty().SetColor(1, 0, 0)  #Red for outside MSR
             target_actor.GetProperty().SetPointSize(3)
             
-            # Add actors
+            #Add actors
             self.ren.AddActor(source_actor)
             self.ren.AddActor(target_actor)
             self.actors.append(source_actor)
             self.actors.append(target_actor)
             
-            # Optimize rendering
+            #Optimise rendering
             self.ren.GetRenderWindow().SetDesiredUpdateRate(30.0)
             self.ren.GetRenderWindow().SetMultiSamples(0)
             self.ren.ResetCamera()
             self.vtk_widget.GetRenderWindow().Render()
             
-            # Update instructions
+            #Update instructions
             self.instructions_label.setText("Registration complete. Green: MRI scalp, Red: Outside MSR scan")
             
         except Exception as e:
@@ -2150,20 +2100,19 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             traceback.print_exc()
 
     def finalizeCoregistration(self, error=None):
-        """Finalize co-registration process with error metrics, iterative refinement and detailed error reporting."""
         if error:
             QMessageBox.critical(self, "Error", f"An error occurred during co-registration: {error}")
             return
         
         try:
-            # Compute combined transformation if not already computed
+            #Compute combined transformation if not already computed
             if self.X21 is None and self.X1 is not None and self.X2 is not None:
                 self.X21 = np.dot(self.X2, self.X1)
             
-            # Print detailed error report for helmet points
+            #Print detailed error report for helmet points
             if hasattr(self, 'inside_msr_points') and len(self.inside_msr_points) >= 7:
                 print("\n=== HELMET POINTS ERROR REPORT ===")
-                # Known positions of stickers in helmet reference frame
+                #Known positions of stickers in helmet reference frame
                 sticker_pillars = np.zeros([7, 3])
                 sticker_pillars[0] = [102.325, 0.221, 16.345]
                 sticker_pillars[1] = [92.079, 66.226, -27.207]
@@ -2176,16 +2125,16 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                 helmet_distances = []
                 for i, point in enumerate(self.inside_msr_points):
                     if i < len(sticker_pillars):
-                        # Create homogeneous coordinates for transformation
+                        #Create homogeneous coordinates for transformation
                         homogeneous_point = np.append(point, 1.0)
                         
-                        # Apply the transformation
+                        #Apply the transformation
                         transformed_homogeneous = np.dot(self.X1, homogeneous_point)
                         
-                        # Get the 3D point back
+                        #Get the 3D point back
                         transformed_point = transformed_homogeneous[:3]
                         
-                        # Calculate distance from transformed point to known position
+                        #Calculate distance from transformed point to known position
                         target = sticker_pillars[i]
                         distance = np.linalg.norm(transformed_point - target)
                         helmet_distances.append(distance)
@@ -2195,30 +2144,30 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                 print(f"Mean Helmet Point Error: {np.mean(helmet_distances):.2f} mm")
                 print(f"Max Helmet Point Error: {np.max(helmet_distances):.2f} mm")
             
-            # Calculate and report fiducial registration error metrics
+            #Calculate and report fiducial registration error metrics
             if hasattr(self, 'fiducial_points') and len(self.fiducial_points) >= 3:
                 print("\n=== FIDUCIAL POINTS ERROR REPORT ===")
-                # Get the MRI fiducial points
-                mri_rpa = np.array([76.52, -7.49, -32.59])  # Right PA
-                mri_lpa = np.array([-79.77, 6.84, -18.24])  # Left PA
-                mri_nas = np.array([7.45, 84.78, 32.48])    # Nasion
+                #Get the MRI fiducial points
+                mri_rpa = np.array([76.52, -7.49, -32.59])  #LPA
+                mri_lpa = np.array([-79.77, 6.84, -18.24])  #LPA
+                mri_nas = np.array([7.45, 84.78, 32.48])    #Nasion
                 mri_fiducials = np.array([mri_rpa, mri_lpa, mri_nas])
                 
-                # Transform MRI fiducials to head space
+                #Transform MRI fiducials to head space
                 transformed_fiducials = []
                 for point in mri_fiducials:
-                    # Create homogeneous coordinates for transformation
+                    #Create homogeneous coordinates for transformation
                     homogeneous_point = np.append(point, 1.0)
                     
-                    # Apply the transformation (X3 transforms MRI to head)
+                    #Apply the transformation (X3 transforms MRI to head)
                     transformed_homogeneous = np.dot(self.X3, homogeneous_point)
                     
-                    # Get the 3D point back
+                    #Get the 3D point back
                     transformed_fiducials.append(transformed_homogeneous[:3])
                 
                 transformed_fiducials = np.array(transformed_fiducials)
                 
-                # Calculate distances between transformed MRI fiducials and original outside MSR fiducials
+                #Calculate distances between transformed MRI fiducials and original outside MSR fiducials
                 distances = []
                 fiducial_names = ["RPA", "LPA", "NAS"]
                 for i in range(3):
@@ -2226,18 +2175,18 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                     distances.append(distance)
                     print(f"Fiducial {fiducial_names[i]}: Error = {distance:.2f} mm")
                 
-                # Calculate mean and max error
+                #Calculate mean and max error
                 mean_error = np.mean(distances)
                 max_error = np.max(distances)
                 print(f"Mean Fiducial Error: {mean_error:.2f} mm")
                 print(f"Max Fiducial Error: {max_error:.2f} mm")
                 
-                # Perform iterative refinement if fiducial errors are too high
+                #Perform iterative refinement if fiducial errors are too high
                 if max_error > 3.0:
                     print("\n=== PERFORMING ITERATIVE REFINEMENT ===")
                     refined_X3 = self.refineTransformationUsingFiducials(self.X3, mri_fiducials, self.fiducial_points)
                     
-                    # Re-calculate errors after refinement
+                    #Recalculate errors after refinement
                     transformed_fiducials_refined = []
                     for point in mri_fiducials:
                         homogeneous_point = np.append(point, 1.0)
@@ -2246,20 +2195,20 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                     
                     transformed_fiducials_refined = np.array(transformed_fiducials_refined)
                     
-                    # Calculate new distances
+                    #Calculate new distances
                     new_distances = []
                     for i in range(3):
                         distance = np.linalg.norm(transformed_fiducials_refined[i] - self.fiducial_points[i])
                         new_distances.append(distance)
                         print(f"Refined Fiducial {fiducial_names[i]}: Error = {distance:.2f} mm")
                     
-                    # Calculate new mean and max error
+                    #Calculate new mean and max error
                     new_mean_error = np.mean(new_distances)
                     new_max_error = np.max(new_distances)
                     print(f"Refined Mean Fiducial Error: {new_mean_error:.2f} mm")
                     print(f"Refined Max Fiducial Error: {new_max_error:.2f} mm")
                     
-                    # If refinement improved the errors, use the refined transformation
+                    #If refinement improved the errors use the refined transformation
                     if new_max_error < max_error:
                         print("Using refined transformation.")
                         self.X3 = refined_X3
@@ -2269,12 +2218,12 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                     else:
                         print("Refinement did not improve errors. Keeping original transformation.")
                 
-                # If fiducial errors are still above 3mm after refinement, force them under 3mm
+                #If fiducial errors are still above 3mm after refinement force them under 3mm
                 if max_error > 3.0:
                     print("\nFiducial errors still above 3mm. Attempting direct fiducial alignment...")
                     forced_X3 = self.forceAlignFiducials(self.X3, mri_fiducials, self.fiducial_points)
                     
-                    # Re-calculate errors after forced alignment
+                    #Recalculate errors after forced alignment
                     forced_transformed_fiducials = []
                     for point in mri_fiducials:
                         homogeneous_point = np.append(point, 1.0)
@@ -2283,22 +2232,22 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                     
                     forced_transformed_fiducials = np.array(forced_transformed_fiducials)
                     
-                    # Calculate distances
+                    #Calculate distances
                     forced_distances = []
                     for i in range(3):
                         distance = np.linalg.norm(forced_transformed_fiducials[i] - self.fiducial_points[i])
                         forced_distances.append(distance)
                         print(f"Forced Alignment Fiducial {fiducial_names[i]}: Error = {distance:.2f} mm")
                     
-                    # Calculate mean and max error
+                    #Calculate mean and max error
                     forced_mean_error = np.mean(forced_distances)
                     forced_max_error = np.max(forced_distances)
                     print(f"Forced Alignment Mean Fiducial Error: {forced_mean_error:.2f} mm")
                     print(f"Forced Alignment Max Fiducial Error: {forced_max_error:.2f} mm")
                     
-                    # Check helmet points with forced alignment to ensure we haven't broken those
+                    #Check helmet points with forced alignment to ensure we havent broken those
                     if hasattr(self, 'inside_msr_points') and len(self.inside_msr_points) >= 7:
-                        # Known positions of stickers in helmet reference frame
+                        #Known positions of stickers in helmet reference frame
                         sticker_pillars = np.zeros([7, 3])
                         sticker_pillars[0] = [102.325, 0.221, 16.345]
                         sticker_pillars[1] = [92.079, 66.226, -27.207]
@@ -2308,22 +2257,22 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                         sticker_pillars[5] = [-92.079, 66.226, -27.207]
                         sticker_pillars[6] = [-102.325, 0.221, 16.345]
                         
-                        # Calculate X21 with forced X3
+                        #Calculate X21 with forced X3
                         forced_X21 = np.dot(forced_X3, np.linalg.inv(self.X2))
                         
                         helmet_distances = []
                         for i, point in enumerate(self.inside_msr_points):
                             if i < len(sticker_pillars):
-                                # Create homogeneous coordinates for transformation
+                                #Create homogeneous coordinates for transformation
                                 homogeneous_point = np.append(point, 1.0)
                                 
-                                # Apply the forced transformation
+                                #Apply the forced transformation
                                 transformed_homogeneous = np.dot(self.X1, homogeneous_point)
                                 
-                                # Get the 3D point back
+                                #Get the 3D point back
                                 transformed_point = transformed_homogeneous[:3]
                                 
-                                # Calculate distance from transformed point to known position
+                                #Calculate distance from transformed point to known position
                                 target = sticker_pillars[i]
                                 distance = np.linalg.norm(transformed_point - target)
                                 helmet_distances.append(distance)
@@ -2333,7 +2282,7 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                         
                         print(f"Forced alignment helmet point errors: Mean={forced_helmet_mean:.2f}mm, Max={forced_helmet_max:.2f}mm")
                         
-                        # If helmet points are still under 5mm, use the forced alignment
+                        #If helmet points are still under 5mm, use the forced alignment
                         if forced_helmet_max < 5.0 and forced_max_error < 3.0:
                             print("Using forced alignment - all fiducials now under 3mm!")
                             self.X3 = forced_X3
@@ -2343,7 +2292,7 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                         else:
                             print("Forced alignment degraded helmet accuracy too much. Keeping original transform.")
                     else:
-                        # If we don't have helmet points to check, use forced alignment if it improved fiducials
+                        #If we dont have helmet points to check use forced alignment if it improved fiducials
                         if forced_max_error < max_error:
                             print("Using forced alignment - all fiducials now under 3mm!")
                             self.X3 = forced_X3
@@ -2351,7 +2300,7 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                             mean_error = forced_mean_error
                             max_error = forced_max_error
                 
-                # Display error metrics to user
+                #Display error metrics to user
                 error_message = (f"Registration Error Metrics:\n"
                                 f"RPA Error: {distances[0]:.2f} mm\n"
                                 f"LPA Error: {distances[1]:.2f} mm\n"
@@ -2361,33 +2310,33 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                 
                 QMessageBox.information(self, "Registration Metrics", error_message)
             
-            # Create visualization of the result
+            #Create visualisation of the result
             try:
-                # Load point clouds
+                #Load point clouds
                 scalp_model = self.loadPointCloudOpen3D(self.file_paths["Scalp File"], 10000)  # Reduced points for speed
                 outside_msr = self.loadPointCloudOpen3D(self.file_paths["Outside MSR"], 10000)  # Reduced points for speed
                 
-                # Transform scalp model to head space
+                #Transform scalp model to head space
                 scalp_aligned = copy.deepcopy(scalp_model)
                 scalp_aligned.transform(self.X3)
                 
-                # Create a static visualization in the main window
+                #Create a static visualisation in the main window
                 self.visualize_static_alignment(scalp_aligned, outside_msr)
                 
             except Exception as e:
-                print(f"Visualization error: {e}")
+                print(f"Visualisation error: {e}")
                 import traceback
                 traceback.print_exc()
             
-            # Inform user of completion
+            #Inform user of completion
             QMessageBox.information(self, "Co-registration Complete", 
                                 "The co-registration process has been completed successfully.")
             
-            # Update GUI for final stage
+            #Update GUI for final stage
             self.current_stage = "finished"
             self.updateInstructions()
             
-            # Enable save button and disable other buttons
+            #Enable save button and disable other buttons
             self.save_button.show()
             self.save_button.setEnabled(True)
             
@@ -2398,28 +2347,24 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             self.continue_button.hide()
             
         except Exception as e:
-            print(f"Error in finalization: {e}")
+            print(f"Error in finalisation: {e}")
             import traceback
             traceback.print_exc()
-            QMessageBox.critical(self, "Error", f"Error in finalization: {str(e)}")
+            QMessageBox.critical(self, "Error", f"Error in finalisation: {str(e)}")
             
     def refineTransformationUsingFiducials(self, initial_transform, mri_fiducials, outside_fiducials, max_iterations=20, learning_rate=0.03):
-        """
-        Refined transformation optimization focusing specifically on fiducial alignment.
-        Implements a weighted approach to preserve global alignment while improving fiducials.
-        """
         print(f"Starting weighted fiducial refinement: {max_iterations} iterations, learning rate: {learning_rate}")
         
-        # Create a working copy of the transformation
+        #Create a working copy of the transformation
         current_transform = initial_transform.copy()
         
-        # Track errors for convergence check
+        #Track errors for convergence check
         previous_error = float('inf')
         best_error = float('inf')
         best_transform = current_transform.copy()
         
         for iteration in range(max_iterations):
-            # Transform MRI fiducials to head space
+            #Transform MRI fiducials to head space
             transformed_fiducials = []
             for point in mri_fiducials:
                 homogeneous_point = np.append(point, 1.0)
@@ -2428,7 +2373,7 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             
             transformed_fiducials = np.array(transformed_fiducials)
             
-            # Calculate errors for each fiducial
+            #Calculate errors for each fiducial
             distances = []
             error_vectors = []
             
@@ -2440,20 +2385,20 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             
             total_error = sum(distances)
             
-            # Store best transformation
+            #Store best transformation
             if total_error < best_error:
                 best_error = total_error
                 best_transform = current_transform.copy()
             
-            # Create a fine-tuning transformation focused on fiducials
+            #Create a finetuning transformation focused on fiducials
             fiducial_adjustment = np.eye(4)
             
-            # 1. Translation component - weighted average of error vectors
+            #Translation component - weighted average of error vectors
             translation = np.zeros(3)
             for i, vector in enumerate(error_vectors):
-                # Apply higher weight to nasion for better results
+                #Apply higher weight to nasion for better results
                 weight = 1.5 if i == 2 else 1.0
-                # Cap error magnitude for stability
+                #Cap error magnitude for stability
                 magnitude = np.linalg.norm(vector)
                 if magnitude > 5.0:
                     vector = vector * (5.0 / magnitude)
@@ -2462,23 +2407,22 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             translation = translation / (len(error_vectors) + 0.5)  # Normalize, accounting for weights
             fiducial_adjustment[:3, 3] = translation * learning_rate
             
-            # 2. Small rotation adjustment using cross-product of error directions
-            # This helps align the fiducial triangle orientation
+            # Small rotation adjustment using cross-product of error directions
             if len(mri_fiducials) >= 3:
-                # Get vectors in the fiducial triangle
-                v1 = transformed_fiducials[1] - transformed_fiducials[0]  # LPA to RPA
-                v2 = transformed_fiducials[2] - transformed_fiducials[0]  # NAS to RPA
+                #Get vectors in the fiducial triangle
+                v1 = transformed_fiducials[1] - transformed_fiducials[0]  #LPA to RPA
+                v2 = transformed_fiducials[2] - transformed_fiducials[0]  #NAS to RPA
                 
                 v1_target = outside_fiducials[1] - outside_fiducials[0]
                 v2_target = outside_fiducials[2] - outside_fiducials[0]
                 
-                # Normalize vectors
+                #Normalise vectors
                 v1 = v1 / np.linalg.norm(v1)
                 v2 = v2 / np.linalg.norm(v2)
                 v1_target = v1_target / np.linalg.norm(v1_target)
                 v2_target = v2_target / np.linalg.norm(v2_target)
                 
-                # Compute normal vectors to the fiducial planes
+                #Compute normal vectors to the fiducial planes
                 normal = np.cross(v1, v2)
                 normal_target = np.cross(v1_target, v2_target)
                 
@@ -2486,16 +2430,16 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                     normal = normal / np.linalg.norm(normal)
                     normal_target = normal_target / np.linalg.norm(normal_target)
                     
-                    # Compute rotation axis and angle
+                    #Compute rotation axis and angle
                     rotation_axis = np.cross(normal, normal_target)
                     if np.linalg.norm(rotation_axis) > 0:
                         rotation_axis = rotation_axis / np.linalg.norm(rotation_axis)
                         dot_product = np.dot(normal, normal_target)
-                        # Clamp dot product to avoid numerical issues
+                        #Clamp dot product to avoid numerical issues
                         dot_product = min(max(dot_product, -1.0), 1.0)
-                        angle = np.arccos(dot_product) * 0.5 * learning_rate  # Reduce angle for stability
+                        angle = np.arccos(dot_product) * 0.5 * learning_rate  #Reduce angle for stability
                         
-                        # Convert to rotation matrix using Rodrigues formula
+                        #Convert to rotation matrix using Rodrigues formula
                         K = np.array([
                             [0, -rotation_axis[2], rotation_axis[1]],
                             [rotation_axis[2], 0, -rotation_axis[0]],
@@ -2504,10 +2448,10 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                         rotation = np.eye(3) + np.sin(angle) * K + (1 - np.cos(angle)) * np.dot(K, K)
                         fiducial_adjustment[:3, :3] = rotation
             
-            # Apply the adjustment to current transformation
+            #Apply the adjustment to current transformation
             current_transform = np.dot(fiducial_adjustment, current_transform)
             
-            # Check for convergence
+            #Check for convergence
             if abs(previous_error - total_error) < 0.01:
                 print(f"Refinement converged at iteration {iteration+1}, error: {total_error:.4f}")
                 break
@@ -2517,24 +2461,20 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             if iteration % 1 == 0:
                 print(f"Iteration {iteration+1}: Total error = {total_error:.4f}")
         
-        # Compare final result with best observed result
+        #Compare final result with best observed result
         final_error = total_error
         print(f"Final refinement error: {final_error:.4f}, Best error: {best_error:.4f}")
         
-        # Return the best transformation found during iterations
+        #Return the best transformation found during iterations
         return best_transform if best_error < final_error else current_transform
 
     def forceAlignFiducials(self, initial_transform, mri_fiducials, outside_fiducials):
-        """
-        Force alignment of fiducials to under 3mm error by directly optimizing 
-        a localized transformation that affects primarily the fiducial regions.
-        """
         print("\n=== PERFORMING DIRECT FIDUCIAL ALIGNMENT ===")
         
-        # Make a copy of the initial transformation
+        #Make a copy of the initial transformation
         global_transform = initial_transform.copy()
         
-        # Transform MRI fiducials to head space using initial transform
+        #Transform MRI fiducials to head space using initial transform
         initial_transformed = []
         for point in mri_fiducials:
             homogeneous = np.append(point, 1.0)
@@ -2543,7 +2483,7 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
         
         initial_transformed = np.array(initial_transformed)
         
-        # Calculate initial errors
+        #Calculate initial errors
         initial_errors = []
         for i in range(len(mri_fiducials)):
             error = np.linalg.norm(initial_transformed[i] - outside_fiducials[i])
@@ -2551,50 +2491,45 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
         
         print(f"Initial fiducial errors: RPA={initial_errors[0]:.2f}mm, LPA={initial_errors[1]:.2f}mm, NAS={initial_errors[2]:.2f}mm")
         
-        # Define a direct mapping between each MRI fiducial and outside fiducial
+        #Define a direct mapping between each MRI fiducial and outside fiducial
         fiducial_corrections = []
         for i in range(len(mri_fiducials)):
             correction = outside_fiducials[i] - initial_transformed[i]
             fiducial_corrections.append(correction)
         
-        # Now apply these corrections with spatial weighting based on distance from each fiducial
         def apply_weighted_corrections(point, ref_points, corrections, influence_radius=80.0):
-            """Apply weighted corrections based on distance from reference points"""
             result = point.copy()
             
-            # Calculate distances to reference points
+            #Calculate distances to reference points
             distances = [np.linalg.norm(point - ref) for ref in ref_points]
             
-            # Calculate weights using a Gaussian falloff
+            #Calculate weights using a Gaussian falloff
             weights = [np.exp(-(d**2)/(2*(influence_radius**2))) for d in distances]
             total_weight = sum(weights)
             
             if total_weight > 0:
-                # Normalize weights
+                #Normalise weights
                 weights = [w/total_weight for w in weights]
                 
-                # Apply weighted corrections
+                #Apply weighted corrections
                 for i in range(len(ref_points)):
                     result += corrections[i] * weights[i]
             
             return result
         
-        # Create a function to transform any point
         def transform_point(point):
-            """Apply global transform then local corrections"""
-            # First apply global transform
+            #First apply global transform
             homogeneous = np.append(point, 1.0)
             global_result = np.dot(global_transform, homogeneous)[:3]
             
-            # Then apply weighted local corrections
+            #Then apply weighted local corrections
             final_result = apply_weighted_corrections(
                 global_result, initial_transformed, fiducial_corrections)
             
             return final_result
         
-        # Create a function that evaluates the new transformation
+
         def corrected_transform(point_array):
-            """Apply the combined transformation to an array of points"""
             result = np.zeros_like(point_array)
             
             for i in range(len(point_array)):
@@ -2602,10 +2537,10 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             
             return result
         
-        # Test the transformation on fiducials
+        #Test the transformation on fiducials
         corrected_fiducials = corrected_transform(mri_fiducials)
         
-        # Calculate final errors
+        #Calculate final errors
         final_errors = []
         for i in range(len(mri_fiducials)):
             error = np.linalg.norm(corrected_fiducials[i] - outside_fiducials[i])
@@ -2613,13 +2548,12 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
         
         print(f"Final fiducial errors: RPA={final_errors[0]:.2f}mm, LPA={final_errors[1]:.2f}mm, NAS={final_errors[2]:.2f}mm")
         
-        # Create a new 4x4 transformation object from this transform_point function
-        # This is an approximation - we create a transformed grid and fit a linear transform
+        #New 4x4 transformation object from this transform_point function
         grid_size = 5
-        grid_spacing = 50.0  # mm
+        grid_spacing = 50.0  #mm
         grid_points = []
         
-        # Create a grid of points around the center of the fiducials
+        #Create a grid of points around the center of the fiducials
         center = np.mean(mri_fiducials, axis=0)
         for x in range(grid_size):
             for y in range(grid_size):
@@ -2633,15 +2567,15 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
         
         grid_points = np.array(grid_points)
         
-        # Transform grid using our function
+        #Transform grid using our function
         transformed_grid = corrected_transform(grid_points)
         
-        # Fit a linear transformation to the grid points
+        #Fit a linear transformation to the grid points
         A = np.zeros((len(grid_points)*3, 12))
         b = np.zeros(len(grid_points)*3)
         
         for i, (src, dst) in enumerate(zip(grid_points, transformed_grid)):
-            # For each point, we have 3 equations (x, y, z)
+            #For each point, we have 3 equations (x, y, z)
             A[i*3, 0:3] = src
             A[i*3, 3] = 1
             A[i*3+1, 4:7] = src
@@ -2653,10 +2587,10 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             b[i*3+1] = dst[1]
             b[i*3+2] = dst[2]
         
-        # Solve for the transformation parameters
+        #Solve for the transformation parameters
         x, residuals, rank, s = np.linalg.lstsq(A, b, rcond=None)
         
-        # Construct the approximated 4x4 transformation matrix
+        #Construct the approximated 4x4 transformation matrix
         approx_transform = np.eye(4)
         approx_transform[0, :3] = x[0:3]
         approx_transform[0, 3] = x[3]
@@ -2665,7 +2599,7 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
         approx_transform[2, :3] = x[8:11]
         approx_transform[2, 3] = x[11]
         
-        # Test the approximated transformation on fiducials
+        #Test the approximated transformation on fiducials
         test_transformed = []
         for point in mri_fiducials:
             homogeneous = np.append(point, 1.0)
@@ -2674,7 +2608,7 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
         
         test_transformed = np.array(test_transformed)
         
-        # Calculate test errors
+        #Calculate test errors
         test_errors = []
         for i in range(len(mri_fiducials)):
             error = np.linalg.norm(test_transformed[i] - outside_fiducials[i])
@@ -2682,41 +2616,41 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
         
         print(f"Approximated transform errors: RPA={test_errors[0]:.2f}mm, LPA={test_errors[1]:.2f}mm, NAS={test_errors[2]:.2f}mm")
         
-        # Return the approximated transformation if all errors are under 3mm
+        #Return the approximated transformation if all errors are under 3mm
         if all(e < 3.0 for e in test_errors):
             print("Successfully reduced all fiducial errors to under 3mm!")
             return approx_transform
         else:
-            # If approximation didn't work well, return a custom transformation object
+            #If approximation didnt work well return a custom transformation object
             print("Warning: Linear approximation couldn't achieve <3mm errors.")
             print("Using direct point-mapping transformation instead (may affect scalp alignment).")
             
-            # Create a direct mapping transform that prioritizes fiducial alignment
+            #Create a direct mapping transform that prioritises fiducial alignment
             direct_transform = np.eye(4)
             
-            # Compute centroid and scaling factor from original to target
+            #Compute centroid and scaling factor from original to target
             mri_centroid = np.mean(mri_fiducials, axis=0)
             outside_centroid = np.mean(outside_fiducials, axis=0)
             
-            # Set up translation
+            #Set up translation
             direct_transform[:3, 3] = outside_centroid - mri_centroid
             
-            # Create a local function to apply this transform
+            #Create a local function to apply this transform
             def direct_transform_func(point):
-                # First translate point to local coordinate system
+                #First translate point to local coordinate system
                 local_point = point - mri_centroid
                 
-                # Apply a weighted transformation based on fiducials
+                #Apply a weighted transformation based on fiducials
                 weighted_result = np.zeros(3)
                 total_weight = 0
                 
                 for i in range(len(mri_fiducials)):
-                    # Calculate distance-based weight
+                    #Calculate distance based weight
                     local_fid = mri_fiducials[i] - mri_centroid
                     distance = np.linalg.norm(local_point - local_fid)
-                    weight = np.exp(-0.5 * (distance / 50.0)**2)  # Gaussian falloff
+                    weight = np.exp(-0.5 * (distance / 50.0)**2)  #Gaussian falloff
                     
-                    # Calculate transformation for this fiducial
+                    #Calculate transformation for this fiducial
                     if np.linalg.norm(local_fid) > 0:
                         direction = local_fid / np.linalg.norm(local_fid)
                         target_fid = outside_fiducials[i] - outside_centroid
@@ -2724,38 +2658,38 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                         source_length = np.linalg.norm(local_fid)
                         
                         if source_length > 0:
-                            # Project point onto direction vector
+                            #Project point onto direction vector
                             projection = np.dot(local_point, direction) * direction
                             
-                            # Calculate scaling along this direction
+                            #Calculate scaling along this direction
                             scale = target_length / source_length
                             
-                            # Apply scaling to projection
+                            #Apply scaling to projection
                             scaled_projection = projection * scale
                             
-                            # Calculate orthogonal component
+                            #Calculate orthogonal component
                             orthogonal = local_point - projection
                             
-                            # Combine to get transformed point in this fiducial's space
+                            #Combine to get transformed point in this fiducial space
                             transformed = scaled_projection + orthogonal
                             
-                            # Add to weighted sum
+                            #Add to weighted sum
                             weighted_result += weight * transformed
                             total_weight += weight
                 
-                # If no weights applied, just use the original point
+                #If no weights applied just use the original point
                 if total_weight > 0:
                     result = weighted_result / total_weight
                 else:
                     result = local_point
                 
-                # Translate back to global coordinate system
+                #Translate back to global coordinate system
                 return result + outside_centroid
             
-            # Test direct transformation on fiducials
+            #Test direct transformation on fiducials
             direct_transformed = np.array([direct_transform_func(p) for p in mri_fiducials])
             
-            # Calculate direct errors
+            #Calculate direct errors
             direct_errors = []
             for i in range(len(mri_fiducials)):
                 error = np.linalg.norm(direct_transformed[i] - outside_fiducials[i])
@@ -2763,26 +2697,26 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             
             print(f"Direct transform errors: RPA={direct_errors[0]:.2f}mm, LPA={direct_errors[1]:.2f}mm, NAS={direct_errors[2]:.2f}mm")
             
-            # If we achieved sub-3mm errors with direct transform, use it
-            # Otherwise, return the original global transform with a warning
+            #If we achieved sub 3mm errors with direct transform, use it
+            #Otherwise return the original global transform with a warning
             if all(e < 3.0 for e in direct_errors):
                 print("Successfully created direct mapping with <3mm errors")
                 
-                # Fit another linear transformation to approximate the direct mapping
+                #Fit another linear transformation to approximate the direct mapping
                 test_grid = np.array([
-                    mri_fiducials[0],  # RPA
-                    mri_fiducials[1],  # LPA
-                    mri_fiducials[2],  # NAS
-                    mri_centroid,      # Center
-                    mri_centroid + np.array([50, 0, 0]),  # +X
-                    mri_centroid + np.array([0, 50, 0]),  # +Y
-                    mri_centroid + np.array([0, 0, 50])   # +Z
+                    mri_fiducials[0],  #RPA
+                    mri_fiducials[1],  #LPA
+                    mri_fiducials[2],  #NAS
+                    mri_centroid,      #Center
+                    mri_centroid + np.array([50, 0, 0]),  #+X
+                    mri_centroid + np.array([0, 50, 0]),  #+Y
+                    mri_centroid + np.array([0, 0, 50])   #+Z
                 ])
                 
-                # Transform test grid
+                #Transform test grid
                 transformed_test = np.array([direct_transform_func(p) for p in test_grid])
                 
-                # Fit a linear transformation
+                #Fit a linear transformation
                 A = np.zeros((len(test_grid)*3, 12))
                 b = np.zeros(len(test_grid)*3)
                 
@@ -2800,7 +2734,7 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                 
                 x, residuals, rank, s = np.linalg.lstsq(A, b, rcond=None)
                 
-                # Construct the final 4x4 transformation matrix
+                #Construct the final 4x4 transformation matrix
                 final_transform = np.eye(4)
                 final_transform[0, :3] = x[0:3]
                 final_transform[0, 3] = x[3]
@@ -2809,7 +2743,7 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                 final_transform[2, :3] = x[8:11]
                 final_transform[2, 3] = x[11]
                 
-                # Test the final transformation
+                #Test the final transformation
                 final_transformed = []
                 for point in mri_fiducials:
                     homogeneous = np.append(point, 1.0)
@@ -2818,7 +2752,7 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                 
                 final_transformed = np.array(final_transformed)
                 
-                # Calculate final linear approximation errors
+                #Calculate final linear approximation errors
                 final_errors = []
                 for i in range(len(mri_fiducials)):
                     error = np.linalg.norm(final_transformed[i] - outside_fiducials[i])
@@ -2829,20 +2763,16 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                 if all(e < 3.0 for e in final_errors):
                     return final_transform
                 else:
-                    # Could not fit a good linear approximation, use global + direct corrections
-                    # We need to replace the global_transform with our custom transform
-                    # This is a heavy-handed approach but will force fiducial alignment
-                    
-                    # Simply adjust the translation part to move fiducials closer
+                    #Simply adjust the translation part to move fiducials closer
                     adjusted_transform = global_transform.copy()
                     
-                    # Calculate average fiducial error vector
+                    #Calculate average fiducial error vector
                     avg_error = np.zeros(3)
                     for i in range(len(mri_fiducials)):
                         avg_error += outside_fiducials[i] - initial_transformed[i]
                     avg_error /= len(mri_fiducials)
                     
-                    # Apply to translation part
+                    #Apply to translation part
                     adjusted_transform[:3, 3] += avg_error
                     
                     return adjusted_transform
@@ -2851,52 +2781,51 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                 return global_transform
         
     def saveResults(self):
-        """Save transformation results to files."""
-        # Open file dialog for saving results
+        #Open file dialog for saving results
         options = QFileDialog.Options()
         save_dir = QFileDialog.getExistingDirectory(self, "Select Directory to Save Results", "", options=options)
         
         if save_dir:
             try:
-                # Load MEG data
+                #Load MEG data
                 raw = mne.io.read_raw_fif(self.file_paths["OPM Data"], preload=True)
                 
-                # Create device-to-head transform
+                #Create device to head transform
                 dev_head_t = mne.transforms.Transform("meg", "head", trans=None)
                 dev_head_t['trans'] = self.X21.copy()
                 
-                # Convert from mm to m for MNE
+                #Convert from mm to m for MNE
                 dev_head_t['trans'][0:3, 3] = np.divide(dev_head_t['trans'][0:3, 3], 1000)
                 
-                # Update raw info with transform
+                #Update raw info with transform
                 raw.info.update(dev_head_t=dev_head_t)
                 
-                # Save updated MEG file
+                #Save updated MEG file
                 output_file = os.path.join(save_dir, os.path.basename(self.file_paths["OPM Data"]))
                 raw.save(output_file, overwrite=True)
                 
-                # Create MRI-to-head transform
+                #Create MRI to head transform
                 mri_head_t = mne.transforms.Transform("mri", "head", trans=None)
                 mri_head_t['trans'] = self.X3.copy()
                 
-                # Convert from mm to m for MNE
+                #Convert from mm to m for MNE
                 mri_head_t['trans'][0:3, 3] = np.divide(mri_head_t['trans'][0:3, 3], 1000)
                 
-                # Save MRI-to-head transform
+                # Save MRI to head transform
                 trans_file = os.path.join(save_dir, os.path.basename(self.file_paths["OPM Data"]).split('.fif')[0] + '_trans.fif')
                 mne.write_trans(trans_file, mri_head_t, overwrite=True)
                 
-                # Save the selected points and fiducials to files for reference
+                #Save the selected points and fiducials to files for reference
                 inside_msr_file = os.path.join(save_dir, "inside_msr_points.txt")
                 fiducials_file = os.path.join(save_dir, "fiducial_points.txt")
                 
-                # Save inside MSR points
+                #Save inside MSR points
                 with open(inside_msr_file, 'w') as f:
                     f.write("Inside MSR Selected Points:\n")
                     for i, point in enumerate(self.inside_msr_points):
                         f.write(f"Point {i+1}: {point[0]:.6f}, {point[1]:.6f}, {point[2]:.6f}\n")
                 
-                # Save fiducial points
+                #Save fiducial points
                 with open(fiducials_file, 'w') as f:
                     f.write("Fiducial Points:\n")
                     for label, point in self.fiducials_dict.items():
@@ -2905,7 +2834,7 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                 QMessageBox.information(self, "Files Saved", 
                                       f"Transformation and point files have been saved to:\n{save_dir}")
                 
-                # Ask if user wants to exit
+                #Ask if user wants to exit
                 reply = QMessageBox.question(self, "Exit Application", 
                                             "Would you like to exit the application?",
                                             QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
