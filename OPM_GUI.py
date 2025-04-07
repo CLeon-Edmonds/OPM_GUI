@@ -18,7 +18,6 @@ o3d.utility.set_verbosity_level(o3d.utility.VerbosityLevel.Error)
 sensor_length = 6e-3
 
 def is_stl_file(file_path):
-    """Check if the file is an STL file based on extension"""
     _, ext = os.path.splitext(file_path.lower())
     return ext == '.stl'
 
@@ -30,10 +29,6 @@ def preprocess_point_cloud(pcd, voxel_size):
     return pcd_down
 
 def align_to_reference(source_pcd, reference_pcd):
-    """
-    Rigidly align source to reference using scaling and rotation only.
-    Preserves reference orientation and centroid location.
-    """
     def normalise(points):
         centre = points.mean(axis=0)
         points_centered = points - centre
@@ -60,7 +55,6 @@ def align_to_reference(source_pcd, reference_pcd):
 
 def execute_global_registration(source_down, target_down, source_fpfh,
                               target_fpfh, voxel_size):
-    """Execute global registration using RANSAC."""
     distance_threshold = voxel_size * 1.5
     result = o3d.pipelines.registration.registration_ransac_based_on_feature_matching(
         source_down, target_down, source_fpfh, target_fpfh, True,
@@ -86,7 +80,7 @@ def align_to_reference(source_pcd, reference_pcd):
     source_pts, source_scale = normalise(source_pcd)
     ref_pts, ref_scale = normalise(reference_pcd)
 
-    # Compute cross-covariance matrix
+    #Compute crosscovariance matrix
     H = source_pts.T @ ref_pts
     U, S, Vt = np.linalg.svd(H)
     R = Vt.T @ U.T
@@ -117,13 +111,13 @@ def standardise_transformation(source_pcd, target_pcd):
         source.scale(scale_factor, center=source.get_center())
         return source
 
-    # Align orientation
+    #Align orientation
     src_axes = get_pca_alignment(source_pcd)
     tgt_axes = get_pca_alignment(target_pcd)
     R = tgt_axes @ src_axes.T
     source_pcd.rotate(R, center=source_pcd.get_center())
 
-    # Scale to match
+    #Scale to match
     source_pcd = scale_to_match(source_pcd, target_pcd)
 
     return source_pcd
@@ -141,32 +135,32 @@ class WorkerThread(QThread):
     def run(self):
         try:
             if self.task == "load_model":
-                # Simulate loading process
+                #Simulate loading process
                 for i in range(101):
                     self.progress_signal.emit(i)
                     self.msleep(30)
                 self.finished_signal.emit(None)
                 
             elif self.task == "load_outside_msr":
-                # Simulate loading process
+                #Simulate loading process
                 for i in range(101):
                     self.progress_signal.emit(i)
                     self.msleep(30)
                 self.finished_signal.emit(None)
                 
             elif self.task == "head_to_mri":
-                # Actual MRI to head registration
-                gui = self.args[0]  # Get the GUI instance
+                #Actual MRI to head registration
+                gui = self.args[0]  #Get the GUI instance
                 
-                # Compute the transformations from head to standard coordinate system
+                #Compute the transformations from head to standard coordinate system
                 self.progress_signal.emit(25)
                 gui.X2 = gui.computeHeadToStandardTransform()
                 
-                # Compute the combined transformation from inside MSR to standard
+                #Compute the combined transformation from inside MSR to standard
                 self.progress_signal.emit(50)
                 gui.X21 = np.dot(gui.X2, gui.X1)
                 
-                # Compute the transformation from MRI to head
+                #Compute the transformation from MRI to head
                 self.progress_signal.emit(75)
                 gui.X3 = gui.computeHeadToMRITransform()
                 
@@ -174,35 +168,31 @@ class WorkerThread(QThread):
                 self.finished_signal.emit(None)
                 
             elif self.task == "final_registration":
-                # This performs the actual head point check and file writing
+                #This performs the actual head point check and file writing
                 gui = self.args[0] if self.args else None
                 
                 if gui:
                     try:
-                        # Compute head to standard transform
+                        #Compute head to standard transform
                         self.progress_signal.emit(10)
                         gui.X2 = gui.computeHeadToStandardTransform()
                         
-                        # Compute combined transform
+                        #Compute combined transform
                         self.progress_signal.emit(30)
                         gui.X21 = np.dot(gui.X2, gui.X1)
                         
-                        # Compute MRI to head transform
+                        #Compute MRI to head transform
                         self.progress_signal.emit(50)
                         gui.X3 = gui.computeHeadToMRITransform()
-                        
-                        # Check sensor positions - skip for now to avoid crashes
-                        # self.progress_signal.emit(80)
-                        # gui.checkHeadpoints()
-                        
+                
                         self.progress_signal.emit(100)
                         self.finished_signal.emit(None)
+
                     except Exception as e:
                         import traceback
                         traceback.print_exc()
                         self.finished_signal.emit(str(e))
                 else:
-                    # Simulate progress if gui not provided (should not happen)
                     for i in range(101):
                         self.progress_signal.emit(i)
                         self.msleep(50)
@@ -233,7 +223,7 @@ class OPMCoRegistrationGUI(QWidget):
         self.file_paths = {}
         self.current_stage = "inside_msr"  
         
-        # Known sensor positions
+        #Known sensor positions. (Change here for new sensor positions)
         self.known_sensor_positions = np.zeros([7, 3], dtype=float)
         self.known_sensor_positions[0] = [2.400627, 6.868828, 15.99383]
         self.known_sensor_positions[1] = [-3.36779, 3.436483, 10.86945]
@@ -246,17 +236,17 @@ class OPMCoRegistrationGUI(QWidget):
         self.point_labels = []
         self.actors = [] 
         
-        # Storage for fiducial points
+        #Storage for fiducial points
         self.fiducial_points = None
         self.fiducials_dict = {}
         
-        # Matrix transformation 
-        self.X1 = None  # Inside MSR to helmet transform
-        self.X2 = None  # Standard transform
-        self.X21 = None  # Combined transform
-        self.X3 = None  # MRI to head transform
+        #Matrix transformation 
+        self.X1 = None  #Inside MSR to helmet transform
+        self.X2 = None  #Standard transform
+        self.X21 = None  #Combined transform
+        self.X3 = None  #MRI to head transform
         
-        # Add these for thread safety
+        #Add these for thread safety
         self._source_cloud_points = None
         self._target_cloud_points = None
         self._sensor_points = None
@@ -264,7 +254,7 @@ class OPMCoRegistrationGUI(QWidget):
         
         self.initUI()
         
-        # Show startup information
+        #Show startup information
         QTimer.singleShot(500, self.showStartupInfo)
 
     def initUI(self):
@@ -275,7 +265,7 @@ class OPMCoRegistrationGUI(QWidget):
         main_layout = QHBoxLayout()
         self.setLayout(main_layout)
 
-        # Left section
+        #Left section
         left_frame = QFrame(self)
         left_frame.setFixedWidth(300)
         left_layout = QVBoxLayout()
@@ -284,7 +274,7 @@ class OPMCoRegistrationGUI(QWidget):
 
         font = QFont("Arial", 12)
 
-        # Add a Help button at the top of the left section
+        #Add a Help button at the top of the left section
         help_button = QPushButton("?", self)
         help_button.setFont(QFont("Arial", 12))
         help_button.setFixedSize(30, 30)
@@ -364,23 +354,23 @@ class OPMCoRegistrationGUI(QWidget):
         self.iren.SetInteractorStyle(CustomInteractorStyle())
         self.iren.AddObserver("LeftButtonPressEvent", self.onShiftLeftClick)
 
-        # Right section 
+        #Right section 
         right_frame = QFrame(self)
         right_frame.setFixedWidth(300)
         right_layout = QVBoxLayout()
         right_frame.setLayout(right_layout)
         main_layout.addWidget(right_frame)
 
-        # Status section
+        #Status section
         self.status_label = QLabel("Point Selection Status", self)
         self.status_label.setFont(QFont("Arial", 14))
         self.status_label.setAlignment(Qt.AlignCenter)
         right_layout.addWidget(self.status_label)
 
-        # Points status layout
+        #Points status layout
         self.point_status_layout = QVBoxLayout()
         
-        # For Inside MSR: 7 points
+        #For Inside MSR: 7 points
         self.distance_labels = []
         self.distance_boxes = []
         
@@ -400,7 +390,7 @@ class OPMCoRegistrationGUI(QWidget):
 
         right_layout.addLayout(self.point_status_layout)
 
-        # Button controls with the new layout you requested
+        #Button controls with the new layout you requested
         button_grid_layout = QGridLayout()
         
         self.clear_button = QPushButton("Clear Points", self)
@@ -422,7 +412,7 @@ class OPMCoRegistrationGUI(QWidget):
         self.confirm_button.clicked.connect(self.confirmPoints)
         button_grid_layout.addWidget(self.confirm_button, 1, 0)
         
-        # New "Fit Points" button
+        #New Fit Points button
         self.fit_button = QPushButton("Fit Points", self)
         self.fit_button.setFont(font)
         self.fit_button.setStyleSheet("background-color: #9370DB; color: white; font-weight: bold;")
@@ -432,7 +422,7 @@ class OPMCoRegistrationGUI(QWidget):
 
         right_layout.addLayout(button_grid_layout)
         
-        # Add continue button at the bottom right
+        #Add continue button at the bottom right
         right_layout.addStretch()
         
         self.continue_button = QPushButton("Continue", self)
@@ -451,19 +441,18 @@ class OPMCoRegistrationGUI(QWidget):
         right_layout.addWidget(self.save_button)
         self.save_button.hide()  #Hide until needed
 
-        # Set up worker thread
+        #Set up worker thread
         self.worker = None
 
-        # Initialise instructions
+        #Initialise instructions
         self.updateInstructions()
 
         self.show()
         
-        # Initialise VTK interactor
+        #Initialise VTK interactor
         self.iren.Initialize()
 
     def showStartupInfo(self):
-        """Display information about prerequisites when the app starts"""
         QMessageBox.information(self, "Prerequisites", 
                                "Welcome to OPM-MEG Co-Registration\n\n"
                                "This application helps you align OPM-MEG sensor positions with MRI data.\n\n"
@@ -475,7 +464,6 @@ class OPMCoRegistrationGUI(QWidget):
                                "Click the '?' button for detailed help.")
 
     def showHelp(self):
-        """Show detailed help information about preprocessing steps"""
         help_text = """
         <h3>OPM-MEG Co-Registration Help</h3>
         
@@ -520,10 +508,10 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             )
             self.status_label.setText("Inside MSR Point Selection Status")
             
-            # 7 points should show up here.
+            #7 points should show up here.
             self.updatePointStatusPanel(7)
             
-            # Show all buttons for inside MSR stage
+            #Show all buttons for inside MSR stage
             self.clear_button.show()
             self.reverse_button.show()
             self.confirm_button.show()
@@ -539,10 +527,10 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             )
             self.status_label.setText("Fiducial Point Selection Status")
             
-            # Fiducial points to show up here
+            #Fiducial points to show up here
             self.updatePointStatusPanel(3, fiducials=True)
             
-            # Only show clear and reverse buttons for outside MSR stage
+            #Only show clear and reverse buttons for outside MSR stage
             self.clear_button.show()
             self.reverse_button.show()
             self.confirm_button.show()
@@ -554,7 +542,7 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                 "Preview will be shown when complete"
             )
             
-            # Hide selection-related buttons during processing
+            #Hide selection related buttons during processing
             self.clear_button.hide()
             self.reverse_button.hide()
             self.confirm_button.hide()
@@ -568,7 +556,7 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             self.save_button.show()
             self.save_button.setEnabled(True)
             
-            # Hide all buttons except save
+            #Hide all buttons except save
             self.clear_button.hide()
             self.reverse_button.hide()
             self.confirm_button.hide()
@@ -610,7 +598,7 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                                                   self.extensions[file_type], options=options)
         
         if file_path:
-            # For Scalp File, ensure it's an STL
+            #For Scalp File, ensure it's an STL
             if file_type == "Scalp File" and not file_path.lower().endswith('.stl'):
                 QMessageBox.warning(self, "Invalid File", 
                                    "The scalp file must be an STL file generated from FreeSurfer.\n"
@@ -618,12 +606,12 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                                    "then convert the scalp surface to STL using mris_convert.")
                 return
             
-            # Store the file path
+            #Store the file path
             self.file_paths[file_type] = file_path
             idx = ["Inside MSR", "Outside MSR", "Scalp File", "OPM Data"].index(file_type)
             self.labels[idx].setText(os.path.basename(file_path))
             
-            # Enable load button if Inside MSR file is selected
+            #Enable load button if Inside MSR file is selected
             if self.file_paths.get("Inside MSR"):
                 self.load_button.setEnabled(True)
 
@@ -631,7 +619,7 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
         if self.iren.GetShiftKey():
             click_pos = self.iren.GetEventPosition()
             
-            # Use vtkPropPicker for better performance
+            #Use VTKPropPicker for better performance
             picker = vtk.vtkPropPicker()
             
             if picker.Pick(click_pos[0], click_pos[1], 0, self.ren):
@@ -640,17 +628,17 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                 if picked_position != (0, 0, 0): 
                     self.addPoint(picked_position)
                     
-                    # Update confirm button
+                    #Update confirm button
                     if (self.current_stage == "inside_msr" and len(self.selected_points) == 7):
                         self.confirm_button.setEnabled(True)
-                        # Also enable the fit button for inside MSR
+                        #Also enable the fit button for inside MSR
                         self.fit_button.setEnabled(True)
                     elif (self.current_stage == "outside_msr" and len(self.selected_points) == 3):
                         self.confirm_button.setEnabled(True)
-                        # Fit button should not be enabled for outside MSR
+                        #Fit button should not be enabled for outside MSR
 
     def addPoint(self, position):
-        # Create a sphere with fewer resolution for faster rendering
+        #Create a sphere with fewer resolution for faster rendering
         point = vtk.vtkSphereSource()
         point.SetCenter(position)
         point.SetRadius(3.0)
@@ -664,9 +652,9 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
         actor.SetMapper(mapper)
         
         if self.current_stage == "inside_msr":
-            actor.GetProperty().SetColor(1, 0, 0) # Red for inside MSR points
+            actor.GetProperty().SetColor(1, 0, 0) #Red for inside MSR points
         else:
-            actor.GetProperty().SetColor(0, 0, 1) # Blue for fiducial points
+            actor.GetProperty().SetColor(0, 0, 1) #Blue for fiducial points
         
         self.ren.AddActor(actor)
         self.actors.append(actor)
@@ -678,7 +666,7 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
         self.vtk_widget.GetRenderWindow().Render()
 
     def updateSelectionUI(self, idx):
-        # Update point status
+        #Update point status
         if idx < len(self.distance_labels):
             if self.current_stage == "inside_msr":
                 self.distance_labels[idx].setText(f"Point {idx+1}: Selected")
@@ -709,7 +697,7 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
 
     def updateProgress(self, value):
         self.progress_bar.setValue(value)
-        QApplication.processEvents()  # Process any pending events to keep UI responsive
+        QApplication.processEvents()  #Process any pending events to keep UI responsive
 
     def finishLoading(self, error=None):
         if error:
@@ -734,19 +722,19 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
     def loadPointCloud(self, file_type):
         file_path = self.file_paths[file_type]
         
-        # Clear previous actors
+        #Clear previous actors
         for actor in self.actors:
             self.ren.RemoveActor(actor)
         self.actors = []
         
-        # Load new point cloud based on file type
+        #Load new point cloud based on file type
         if file_type in ["Inside MSR", "Outside MSR"]:
-            # Load PLY file
+            #Load PLY file
             reader = vtk.vtkPLYReader()
             reader.SetFileName(file_path)
             reader.Update()
         elif file_type == "Scalp File":
-            # Load STL file
+            #Load STL file
             reader = vtk.vtkSTLReader()
             reader.SetFileName(file_path)
             reader.Update()
@@ -756,44 +744,40 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
         
         actor = vtk.vtkActor()
         actor.SetMapper(mapper)
-        # Ensure no scaling is applied to the actor
+        #Ensure no scaling is applied to the actor
         actor.SetScale(1.0, 1.0, 1.0)
         
         self.ren.AddActor(actor)
         self.actors.append(actor)
         
-        # Reset camera to fit the model
+        #Reset camera to fit the model
         self.ren.ResetCamera()
         self.vtk_widget.GetRenderWindow().Render()
 
     def loadPointCloudOpen3D(self, file_path, max_points=100000):
-        """
-        Load point cloud using Open3D for registration tasks with downsampling option.
-        Add more robust error handling and fallback mechanisms.
-        """
         try:
-            # Check file extension
-            file_path = str(file_path)  # Ensure string type
+            #Check file extension
+            file_path = str(file_path)  #Ensure string type
             print(f"Attempting to load file: {file_path}")
             
-            # Lower memory approach
+            #Lower memory approach
             if file_path.lower().endswith('.ply'):
                 print(f"Loading PLY file: {file_path}")
                 try:
-                    # First try reading as mesh
+                    #First try reading as mesh
                     point_cloud = o3d.io.read_triangle_mesh(file_path)
                     if not point_cloud.has_vertices():
                         raise ValueError("No vertices found in mesh")
                     
-                    # Convert mesh to point cloud with poisson disk sampling
+                    #Convert mesh to point cloud with poisson disk sampling
                     print(f"Sampling with max points: {max_points}")
                     point_cloud = point_cloud.sample_points_poisson_disk(max_points)
                 except Exception as mesh_error:
                     print(f"Mesh loading failed, trying direct point cloud: {mesh_error}")
-                    # Fallback to direct point cloud reading
+                    #Fallback to direct point cloud reading
                     point_cloud = o3d.io.read_point_cloud(file_path)
                     
-                    # Downsample if too many points
+                    #Downsample if too many points
                     if len(point_cloud.points) > max_points:
                         point_cloud = point_cloud.random_down_sample(max_points / len(point_cloud.points))
             
@@ -801,18 +785,18 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                 print(f"Loading STL file: {file_path}")
                 mesh = o3d.io.read_triangle_mesh(file_path)
                 
-                # Ensure mesh is valid
+                #Ensure mesh is valid
                 if not mesh.has_vertices():
                     raise ValueError("No vertices found in STL mesh")
                 
-                # Convert mesh to point cloud with poisson disk sampling
+                #Convert mesh to point cloud with poisson disk sampling
                 print(f"Sampling with max points: {max_points}")
                 point_cloud = mesh.sample_points_poisson_disk(max_points)
             
             else:
                 raise ValueError(f"Unsupported file format: {file_path}")
             
-            # Verify point cloud
+            #Verify point cloud
             if len(point_cloud.points) == 0:
                 raise ValueError("Empty point cloud after processing")
             
@@ -826,13 +810,12 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             raise
 
     def visualize_initial_alignment(self, mri_mesh, scan_mesh):
-        """Visualize the initial alignment between MRI and scan meshes for debugging."""
-        # Create new render window for visualization
+        #Create new render window for visualization
         render_window = vtk.vtkRenderWindow()
         renderer = vtk.vtkRenderer()
         render_window.AddRenderer(renderer)
         
-        # Convert MRI mesh to actor with green color
+        #Convert MRI mesh to actor with green color
         mri_mapper = vtk.vtkPolyDataMapper()
         mri_points = vtk.vtkPoints()
         for point in mri_mesh.points:
@@ -853,7 +836,7 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
         mri_actor.SetMapper(mri_mapper)
         mri_actor.GetProperty().SetColor(0.0, 1.0, 0.0)  # Green
         
-        # Convert scan mesh to actor with red color
+        #Convert scan mesh to actor with red color
         scan_mapper = vtk.vtkPolyDataMapper()
         scan_points = vtk.vtkPoints()
         for point in scan_mesh.points:
@@ -874,11 +857,11 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
         scan_actor.SetMapper(scan_mapper)
         scan_actor.GetProperty().SetColor(1.0, 0.0, 0.0)  # Red
         
-        # Add actors to renderer
+        #Add actors to renderer
         renderer.AddActor(mri_actor)
         renderer.AddActor(scan_actor)
         
-        # Set up interactor and start
+        #Set up interactor and start
         interactor = vtk.vtkRenderWindowInteractor()
         interactor.SetRenderWindow(render_window)
         interactor.Initialize()
@@ -887,18 +870,13 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
         interactor.Start()
 
     def improved_icp_registration(self, source, target, initial_transform=None, max_iterations=100, threshold=2.0):
-        """
-        Enhanced ICP registration with adjustable parameters.
-        """
-        import open3d as o3d
-        
         print("Starting ICP registration...")
         
-        # If no initial transform is provided, use identity
+        #If no initial transform is provided, use identity
         if initial_transform is None:
             initial_transform = np.eye(4)
         
-        # Point-to-point ICP
+        #Point to point ICP
         p2p_icp = o3d.pipelines.registration.registration_icp(
             source, target, threshold, initial_transform,
             o3d.pipelines.registration.TransformationEstimationPointToPoint(),
@@ -909,7 +887,7 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             )
         )
         
-        # Try point-to-plane ICP if normals are available
+        #Try point to plane ICP if normals are available
         if hasattr(source, 'normals') and hasattr(target, 'normals'):
             if len(source.normals) > 0 and len(target.normals) > 0:
                 print("Using point-to-plane ICP for refinement...")
@@ -923,7 +901,7 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
                     )
                 )
                 
-                # Use point-to-plane result if it's better
+                #Use point to plane result if its better
                 if p2l_icp.fitness > p2p_icp.fitness:
                     print(f"Using point-to-plane result: fitness={p2l_icp.fitness:.4f}, rmse={p2l_icp.inlier_rmse:.4f}")
                     return p2l_icp.transformation
@@ -932,20 +910,14 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
         return p2p_icp.transformation
 
     def visualize_registration_error(self, source_pcd, target_pcd, transformation):
-        """
-        Visualize the registration error between transformed source and target.
-        Colorizes points by distance to nearest neighbor.
-        """
-        import open3d as o3d
-        
-        # Create a copy of source and apply transformation
+        #Create a copy of source and apply transformation
         source_transformed = copy.deepcopy(source_pcd)
         source_transformed.transform(transformation)
         
-        # Build KD tree for target points
+        #Build KD tree for target points
         target_tree = o3d.geometry.KDTreeFlann(target_pcd)
         
-        # Calculate distances to nearest neighbors
+        #Calculate distances to nearest neighbors
         source_points = np.asarray(source_transformed.points)
         distances = []
         
@@ -955,23 +927,23 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
         
         distances = np.array(distances)
         
-        # Normalize distances for coloring
-        max_dist = np.percentile(distances, 95)  # Use 95th percentile to avoid outliers
+        #Normalise distances for coloring
+        max_dist = np.percentile(distances, 95)  #Use 95th percentile to avoid outliers
         normalized_distances = np.minimum(distances / max_dist, 1.0)
         
-        # Create color map (blue to red)
+        #Create color map (blue to red)
         colors = np.zeros((len(normalized_distances), 3))
-        colors[:, 0] = normalized_distances  # Red channel
-        colors[:, 2] = 1.0 - normalized_distances  # Blue channel
+        colors[:, 0] = normalized_distances  #Red channel
+        colors[:, 2] = 1.0 - normalized_distances  #Blue channel
         
-        # Assign colors to source
+        #Assign colors to source
         error_cloud = copy.deepcopy(source_transformed)
         error_cloud.colors = o3d.utility.Vector3dVector(colors)
         
-        # Visualize
+        #Visualise
         o3d.visualization.draw_geometries([error_cloud, target_pcd])
         
-        # Print statistics
+        #Print statistics
         mean_dist = np.mean(distances)
         median_dist = np.median(distances)
         print(f"Registration error statistics:")
@@ -982,105 +954,81 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
         return mean_dist, median_dist, max_dist
 
     def visualize_transformation_step(self, source_pcd, target_pcd, transformation_matrix=None, title="Transformation Step"):
-        """
-        Visualize transformation step for debugging.
-        Shows source and target point clouds, with transformed source if transformation_matrix is provided.
-        """
-        # Create deep copies to avoid modifying originals
+        #Create deep copies to avoid modifying originals
         source_copy = copy.deepcopy(source_pcd)
         target_copy = copy.deepcopy(target_pcd)
         
-        # Apply transformation if provided
+        #Apply transformation if provided
         if transformation_matrix is not None:
             source_copy.transform(transformation_matrix)
         
-        # Paint point clouds differently
-        source_copy.paint_uniform_color([1, 0, 0])  # Red
-        target_copy.paint_uniform_color([0, 1, 0])  # Green
+        #Paint point clouds differently
+        source_copy.paint_uniform_color([1, 0, 0])  #Red
+        target_copy.paint_uniform_color([0, 1, 0])  #Green
         
-        # Print information about point clouds
+        #Print information about point clouds
         print(f"{title} Visualization:")
         print(f"  Source points: {len(source_copy.points)}")
         print(f"  Target points: {len(target_copy.points)}")
         
-        import open3d as o3d
         o3d.visualization.draw_geometries([source_copy, target_copy], window_name=title)
 
     def standardize_coordinate_system(self, pcd, system="RAS"):
-        """
-        Ensure consistent coordinate system across all data.
-        Transforms point cloud to specified coordinate system.
-        
-        RAS: Right-Anterior-Superior (standard neurological coordinate system)
-        """
         pcd_copy = copy.deepcopy(pcd)
         points = np.asarray(pcd_copy.points)
         
-        # Determine current coordinate system (simple heuristic)
-        # This is a placeholder - you'd need to adapt based on your data
+        #Determine current coordinate system (simple heuristic)
+        #This is a placeholder - you'd need to adapt based on your data. DOuble check coordinate system before modifying. 
         centroid = np.mean(points, axis=0)
         min_coords = np.min(points, axis=0)
         max_coords = np.max(points, axis=0)
         
-        # Check if we need to transform
+        #Check if we need to transform
         if system == "RAS":
-            # Apply transformation to match RAS
-            # This is a placeholder transformation - would need to be adjusted
+            #Apply transformation to match RAS
+            #This is a placeholder transformation - would need to be adjusted
             transform = np.eye(4)
             
-            # Detect if X axis needs flipping (for Right-Left)
+            #Detect if X axis needs flipping (for Right-Left)
             if centroid[0] > 0:  # Assuming data should be centered
                 transform[0, 0] = -1  # Flip X
                 
-            # Detect if Z axis needs flipping (for Superior-Inferior)
+            #Detect if Z axis needs flipping (for Superior-Inferior)
             z_range = max_coords[2] - min_coords[2]
             if (max_coords[2] - centroid[2]) < (z_range * 0.4):  # If less points above centroid
                 transform[2, 2] = -1  # Flip Z
             
-            # Apply transformation
+            #Apply transformation
             pcd_copy.transform(transform)
             
         return pcd_copy
 
     def preprocess_point_cloud(self, pcd, voxel_size=2.0, remove_outliers=True):
-        """
-        Pre-process point cloud for better registration:
-        1. Downsample using voxel grid
-        2. Estimate normals
-        """
-        import open3d as o3d
         
-        # Create a copy to avoid modifying the original
+        #Create a copy to avoid modifying the original
         pcd_copy = copy.deepcopy(pcd)
         
-        # Downsample using voxel grid
+        #Downsample using voxel grid
         pcd_down = pcd_copy.voxel_down_sample(voxel_size)
         
-        # Estimate normals
+        #Estimate normals
         radius_normal = voxel_size * 2
         pcd_down.estimate_normals(
             o3d.geometry.KDTreeSearchParamHybrid(radius=radius_normal, max_nn=30)
         )
         
-        # Note: We've removed the outlier removal functions that were causing issues
-        # We'll use an alternate approach if needed
-        
         print(f"Pre-processed point cloud: {len(pcd_down.points)} points (from {len(pcd_copy.points)})")
         return pcd_down
 
     def normalize_scaling(self, source_pcd, target_pcd):
-        """
-        Normalize the scaling between source and target point clouds.
-        Returns scaled source point cloud.
-        """
-        # Create deep copy to avoid modifying original
+        #Create deep copy to avoid modifying original
         source_copy = copy.deepcopy(source_pcd)
         
-        # Get points from both clouds
+        #Get points from both clouds
         source_points = np.asarray(source_copy.points)
         target_points = np.asarray(target_pcd.points)
         
-        # Compute bounding box sizes
+        #Compute bounding box sizes
         source_min = np.min(source_points, axis=0)
         source_max = np.max(source_points, axis=0)
         source_size = source_max - source_min
@@ -1089,14 +1037,11 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
         target_max = np.max(target_points, axis=0)
         target_size = target_max - target_min
         
-        # Compute scale factors
+        #Compute scale factors
         scale_factors = target_size / source_size
         
-        # Use mean scale or separate scales for each dimension
+        #Use mean scale or separate scales for each dimension
         mean_scale = np.mean(scale_factors)
-        
-        # Apply scaling to source - with correct center argument
-        # We need to provide the center as a numpy array
         center = np.mean(source_points, axis=0)
         source_copy.scale(mean_scale, center=center)
         
@@ -1105,162 +1050,132 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
         return source_copy
 
     def align_using_pca(self, source, target):
-        """
-        Align source to target using Principal Component Analysis.
-        This aligns the main axes of variation between the two point clouds.
-        """
-        import open3d as o3d
-        import numpy as np
-        
-        # Create a copy to avoid modifying the original
+        #Create a copy to avoid modifying the original
         source_copy = copy.deepcopy(source)
         
-        # Get points from both clouds
+        #Get points from both clouds
         source_points = np.asarray(source_copy.points)
         target_points = np.asarray(target.points)
         
-        # Compute centroids
+        #Compute centroids
         source_centroid = np.mean(source_points, axis=0)
         target_centroid = np.mean(target_points, axis=0)
         
-        # Center both point clouds
+        #Center both point clouds
         source_centered = source_points - source_centroid
         target_centered = target_points - target_centroid
         
-        # Compute covariance matrices
+        #Compute covariance matrices
         source_cov = np.cov(source_centered, rowvar=False)
         target_cov = np.cov(target_centered, rowvar=False)
         
-        # Compute eigenvectors
+        #Compute eigenvectors
         source_eigvals, source_eigvecs = np.linalg.eigh(source_cov)
         target_eigvals, target_eigvecs = np.linalg.eigh(target_cov)
         
-        # Sort eigenvectors by eigenvalues in descending order
+        #Sort eigenvectors by eigenvalues in descending order
         source_indices = np.argsort(source_eigvals)[::-1]
         source_eigvecs = source_eigvecs[:, source_indices]
         
         target_indices = np.argsort(target_eigvals)[::-1]
         target_eigvecs = target_eigvecs[:, target_indices]
         
-        # Compute rotation matrix that aligns source eigenvectors with target eigenvectors
+        #Compute rotation matrix that aligns source eigenvectors with target eigenvectors
         rotation = np.dot(target_eigvecs, source_eigvecs.T)
         
-        # Ensure it's a proper rotation matrix (det=1)
+        #Ensure its a proper rotation matrix (det=1)
         if np.linalg.det(rotation) < 0:
             source_eigvecs[:, 2] = -source_eigvecs[:, 2]
             rotation = np.dot(target_eigvecs, source_eigvecs.T)
         
-        # Create transformation matrix
+        #Create transformation matrix
         transformation = np.eye(4)
         transformation[:3, :3] = rotation
         transformation[:3, 3] = target_centroid - np.dot(rotation, source_centroid)
         
-        # Apply transformation
+        #Apply transformation
         source_copy.transform(transformation)
         
         return source_copy
 
     def align_with_standard_orientation(self, pcd):
-        """
-        Ensure the point cloud is oriented correctly with y-up, face forward.
-        Based on York's head_to_standard approach.
-        """
-        import open3d as o3d
-        import numpy as np
-        
-        # Create a copy
         pcd_copy = copy.deepcopy(pcd)
         points = np.asarray(pcd_copy.points)
         
-        # First determine the principal axes using PCA
+        #First determine the principal axes using PCA
         centroid = np.mean(points, axis=0)
         centered_points = points - centroid
         cov = np.cov(centered_points, rowvar=False)
         eigvals, eigvecs = np.linalg.eigh(cov)
         
-        # Sort eigenvectors by eigenvalues in descending order
+        #Sort eigenvectors by eigenvalues in descending order
         sort_indices = np.argsort(eigvals)[::-1]
         eigvecs = eigvecs[:, sort_indices]
         
-        # Create initial transformation matrix to align with principal axes
+        #Create initial transformation matrix to align with principal axes
         transform = np.eye(4)
         transform[:3, :3] = eigvecs
         
-        # Check if we need to flip axes to maintain correct orientation
-        # We'll use heuristics based on the point cloud shape
-        
-        # 1. The y-axis should point up
-        # If the top of the head has fewer points than the bottom, we might need to flip y
         y_axis = eigvecs[:, 1]
         y_proj = np.dot(centered_points, y_axis)
         y_top_count = np.sum(y_proj > 0)
         y_bottom_count = np.sum(y_proj < 0)
         
-        # 2. The z-axis should point to the back of the head
-        # If the back of the head has fewer points than the face, we might need to flip z
         z_axis = eigvecs[:, 2]
         z_proj = np.dot(centered_points, z_axis)
         z_back_count = np.sum(z_proj > 0)
         z_front_count = np.sum(z_proj < 0)
         
-        # 3. The x-axis should point to the right side of the head
-        # Determine if we need to flip x to maintain a right-handed coordinate system
         x_axis = eigvecs[:, 0]
         
-        # Construct corrected transformation
+        #Construct corrected transformation
         corrected_transform = np.eye(4)
         
-        # Apply flips if needed
+        #Apply flips if needed
         if y_top_count < y_bottom_count:
             y_axis = -y_axis
         
         if z_back_count < z_front_count:
             z_axis = -z_axis
         
-        # Ensure right-handed coordinate system
+        #Ensure right hand coordinate system
         x_axis = np.cross(y_axis, z_axis)
         
-        # Ensure proper normalization
+        #Ensure proper normalisation
         x_axis = x_axis / np.linalg.norm(x_axis)
         y_axis = y_axis / np.linalg.norm(y_axis)
         z_axis = z_axis / np.linalg.norm(z_axis)
         
-        # Set the corrected axes
+        #Set the corrected axes
         corrected_transform[:3, 0] = x_axis
         corrected_transform[:3, 1] = y_axis
         corrected_transform[:3, 2] = z_axis
         corrected_transform[:3, 3] = centroid
         
-        # Create new transform that moves points from original to standard orientation
+        #Create new transform that moves points from original to standard orientation
         std_transform = np.linalg.inv(corrected_transform)
         
-        # Apply transformation
+        #Apply transformation
         pcd_copy.transform(std_transform)
         
         return pcd_copy, std_transform
 
     def select_registration_regions(self, pcd, region='face_forehead'):
-        """
-        Select specific regions of point cloud for registration.
-        Restricts to upper face and forehead as recommended by Zetter et al.
-        """
         points = np.asarray(pcd.points)
         
         if region == 'face_forehead':
-            # Define bounding box for face and forehead region
-            # These values need to be adjusted based on your coordinate system
-            # Assuming standard coordinate system with y pointing up
-            y_min = np.percentile(points[:, 1], 60)  # Upper 40% of head
-            z_min = np.min(points[:, 2])
-            z_max = np.percentile(points[:, 2], 80)  # Front 80% of head
             
-            # Create mask for region selection
+            y_min = np.percentile(points[:, 1], 60)  #Upper 40% of head
+            z_min = np.min(points[:, 2])
+            z_max = np.percentile(points[:, 2], 80)  #Front 80% of head
+            
+            #Create mask for region selection
             mask = (points[:, 1] > y_min) & (points[:, 2] > z_min) & (points[:, 2] < z_max)
             
-            # Create new point cloud with selected points
+            #Create new point cloud with selected points
             selected_pcd = pcd.select_by_index(np.where(mask)[0])
             
-            # If too few points are selected, adjust criteria
+            #If too few points are selected, adjust criteria
             if len(selected_pcd.points) < 100:
                 print("Warning: Too few points selected. Adjusting criteria.")
                 y_min = np.percentile(points[:, 1], 50)  # Upper 50% of head
@@ -1270,7 +1185,7 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             return selected_pcd
         
         elif region == 'whole_head':
-            # Return full point cloud
+            #Return full point cloud
             return pcd
         
         else:
@@ -1341,10 +1256,10 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
 
     def confirmInsideMSR(self):
         try:
-            # Convert selected points to numpy array for calculations
+            #Convert selected points to numpy array for calculations
             selected_points_np = np.array(self.selected_points)
             
-            # Known positions of stickers in helmet reference frame (from York_Test.py)
+            #Known positions of stickers in helmet reference frame. Chane here again with your known points.
             known_sticker_positions = np.zeros([7, 3])
             known_sticker_positions[0] = [102.325, 0.221, 16.345]
             known_sticker_positions[1] = [92.079, 66.226, -27.207]
@@ -1354,41 +1269,41 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             known_sticker_positions[5] = [-92.079, 66.226, -27.207]
             known_sticker_positions[6] = [-102.325, 0.221, 16.345]
             
-            # Update our known sensor positions with these values
+            #Update our known sensor positions with these values
             self.known_sensor_positions = known_sticker_positions
             
-            # Calculate the transformation matrix
+            #Calculate the transformation matrix
             self.X1 = self.computeTransformation(selected_points_np, self.known_sensor_positions)
             
-            # Calculate and display distances
+            #Calculate and display distances
             for i, point in enumerate(selected_points_np):
                 if i < len(self.known_sensor_positions):
-                    # Create homogeneous coordinates for transformation
+                    #Create homogeneous coordinates for transformation
                     homogeneous_point = np.append(point, 1.0)
                     
-                    # Apply the transformation
+                    #Apply the transformation
                     transformed_homogeneous = np.dot(self.X1, homogeneous_point)
                     
-                    # Get the 3D point back
+                    #Get the 3D point back
                     transformed_point = transformed_homogeneous[:3]
                     
-                    # Calculate distance from transformed point to known position
+                    #Calculate distance from transformed point to known position
                     target = self.known_sensor_positions[i]
                     distance = np.linalg.norm(transformed_point - target)
                     
                     self.distance_labels[i].setText(f"Point {i+1}: {distance:.2f} mm")
                     self.distance_boxes[i].setText(f"{distance:.2f} mm")
                     
-                    # Color based on distance
-                    if distance > 3:  # 3mm threshold
+                    #Color based on distance
+                    if distance > 3:  #3mm threshold
                         self.distance_boxes[i].setStyleSheet("background-color: #FF5733; color: white;")
                     else:
                         self.distance_boxes[i].setStyleSheet("background-color: #4CAF50; color: white;")
             
-            # Enable the fit button if it's not already enabled
+            #Enable the fit button if it's not already enabled
             self.fit_button.setEnabled(True)
             
-            # Print confirmation message
+            #Print confirmation message
             print("Inside MSR points confirmed")
         except Exception as e:
             print(f"Error in confirmInsideMSR: {e}")
@@ -1397,24 +1312,23 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             QMessageBox.critical(self, "Error", f"Error confirming inside MSR points: {str(e)}")
 
     def confirmScalpFiducials(self):
-        """Confirm the selection of fiducial points on the MRI scalp."""
         try:
-            # Store the scalp fiducial points
+            #Store the scalp fiducial points
             if len(self.selected_points) >= 2:
                 self.scalp_fiducials = np.array(self.selected_points[:2])
                 
-                # Create a dictionary to store fiducial labels
+                #Create a dictionary to store fiducial labels
                 self.scalp_fiducials_dict = {
                     "RPA": self.scalp_fiducials[0],
                     "LPA": self.scalp_fiducials[1]
                 }
                 
-                # Print fiducial points for debugging
+                #Print fiducial points for debugging
                 print("Scalp fiducial points selected:")
                 for label, point in self.scalp_fiducials_dict.items():
                     print(f"{label}: {point}")
                 
-                # Continue with MRI to head registration
+                #Continue with MRI to head registration
                 self.moveToMRIScalp()
                 
             else:
@@ -1428,36 +1342,32 @@ mris_convert $SUBJECTS_DIR/subject_name/surf/scalp scalp.stl</pre>
             QMessageBox.critical(self, "Error", f"Error confirming scalp fiducials: {str(e)}")
             
     def computeTransformation(self, source, target):
-        """
-        Calculate the transformation matrix from source to target points
-        Similar to the TransformationEstimationPointToPoint in Open3D
-        """
-        # Center both point sets
+        #Center both point sets
         source_center = np.mean(source, axis=0)
         target_center = np.mean(target, axis=0)
         
-        # Center the points
+        #Center the points
         source_centered = source - source_center
         target_centered = target - target_center
         
-        # Compute the covariance matrix
+        #Compute the covariance matrix
         H = np.dot(source_centered.T, target_centered)
         
-        # SVD factorization
+        #SVD factorisation
         U, S, Vt = np.linalg.svd(H)
         
-        # Rotation matrix
+        #Rotation matrix
         R = np.dot(Vt.T, U.T)
         
-        # Ensure proper rotation matrix (determinant = 1)
+        #Ensure proper rotation matrix (determinant = 1)
         if np.linalg.det(R) < 0:
             Vt[-1,:] *= -1
             R = np.dot(Vt.T, U.T)
         
-        # Translation
+        #Translation
         t = target_center - np.dot(R, source_center)
         
-        # Create transformation matrix
+        #Create transformation matrix
         T = np.identity(4)
         T[:3, :3] = R
         T[:3, 3] = t
