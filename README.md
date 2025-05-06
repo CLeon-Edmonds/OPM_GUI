@@ -11,9 +11,8 @@ Before using this software, you will need:
 1. A structural T1-weighted MRI scan of the subject
 2. FreeSurfer installed and configured on your system
 3. OPM-MEG data in .fif format
-4. Fiducials File in .fif format
-5. 3D scans of the subject's head both inside and outside the Magnetically Shielded Room (MSR)
-6. Python 3.6+ with the dependencies installed (see installation instructions below)
+4. 3D scans of the subject's head both inside and outside the Magnetically Shielded Room (MSR)
+5. Python 3.6+ with the dependencies installed (see installation instructions below)
 
 ### Installation of Dependencies
 
@@ -46,7 +45,6 @@ The software requires the following input files:
 2. **Outside MSR Scan** (.ply format): 3D scan of the subject's head captured outside the MSR. Likewise, this should include all fiducials clearly with no holes.
 3. **Scalp Surface** (.stl format): Generated from the subject's MRI using FreeSurfer (instructions below)
 4. **OPM Data** (.fif format): The MEG data file that requires co-registration
-5. **Fiducials fiile** (.fif format): This can be extrated via FreeSurfer
 
 ## FreeSurfer Processing Guide
 
@@ -109,11 +107,7 @@ Before using this software, you must process the MRI data using FreeSurfer. Foll
    ```bash
    freeview -v $SUBJECTS_DIR/subject_name/mri/T1.mgz -f $SUBJECTS_DIR/subject_name/surf/scalp.stl:edgecolor=red
    ```
-6. Generate Fiducials file
-   FreeSurfer can automatically estimate anatomical fiducials from the T1-weighted MRI using the `mri_fiducials` tool.
-```bash
-mri_fiducials --subject subject_name --out $SUBJECTS_DIR/subject_name/mri/transforms/fiducials.fif
-```
+
 ## Co-Registration Workflow
 
 The software implements a step by step co-registration process:
@@ -125,8 +119,7 @@ The software implements a step by step co-registration process:
      - BIDS Root Directory
      - Derivative Directory
      - BIDS Entities: subject, session, task, run, suffix.
-     - Path to MRI (if left blank it will use same path as above)
-     - Path to Fiducials (if left blank it will use the same path as above)
+     - Path to MRI (if left vlank it will use same path as above)
 
 ### 2. Inside MSR Registration
 - The Inside MSR scan will be displayed.
@@ -139,10 +132,9 @@ The software implements a step by step co-registration process:
 ### 3. Outside MSR Registration
 - The Outside MSR scan will be displayed.
 - Mark 3 fiducial points in the following order:
-  1. Nasion
+  1. Right pre-auricular point (RPA)
   2. Left pre-auricular point (LPA)
-  3. Right pre-auricular point (RPA)
-
+  3. Nasion
 - Click "Confirm Points" to store the fiducials.
 - Click "Continue" to proceed.
 
